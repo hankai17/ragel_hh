@@ -223,3 +223,19 @@ add_custom_target(compare_log4j
 
 add_executable(example_call_plugin examples/call_plugin.c)
 target_link_libraries(example_call_plugin PRIVATE ${CMAKE_DL_LIBS})
+
+add_executable(example_call_log4j examples/call_log4j_plugin.c)
+target_link_libraries(example_call_log4j PRIVATE ${CMAKE_DL_LIBS})
+
+# 正则对比需要 PCRE2（与线上正则的 PCRE 语义一致）；缺失时示例
+# 仅保留引擎侧输出（LOG4J_NO_PCRE2 编译开关）。
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(PCRE2 QUIET libpcre2-8)
+endif()
+if(PCRE2_FOUND)
+    target_include_directories(example_call_log4j PRIVATE ${PCRE2_INCLUDE_DIRS})
+    target_link_libraries(example_call_log4j PRIVATE ${PCRE2_LIBRARIES})
+else()
+    target_compile_definitions(example_call_log4j PRIVATE LOG4J_NO_PCRE2=1)
+endif()
