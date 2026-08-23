@@ -130,6 +130,11 @@ target_link_libraries(rulec PRIVATE antlr4-runtime)
 file(GLOB RULE_FILES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/rules/sqli/*.g4
     ${CMAKE_CURRENT_SOURCE_DIR}/rules/xss/*.g4
+    ${CMAKE_CURRENT_SOURCE_DIR}/rules/log4j/*.g4
+)
+
+file(GLOB SHARED_G4 CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/rules/_shared/*.g4
 )
 
 set(PLUGIN_OUT_DIR ${CMAKE_BINARY_DIR}/plugins)
@@ -154,6 +159,7 @@ foreach(rule_file ${RULE_FILES})
         DEPENDS rulec
                 ${rule_file}
                 ${CMAKE_CURRENT_SOURCE_DIR}/rule_plugin.h
+                ${SHARED_G4}
         COMMENT "compile rule ${rule_file} -> ${plugin_so}"
         VERBATIM
     )
@@ -185,6 +191,28 @@ add_custom_target(validate
             ${PLUGIN_OUT_DIR}
     DEPENDS engine plugins
     COMMENT "validate sqli rules against positive/negative samples"
+    VERBATIM
+)
+
+# ------------------------------------------------------------
+# 目标 5b：log4j 规则校验 + 正则对比
+# ------------------------------------------------------------
+
+add_custom_target(validate_log4j
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/misc/validate_log4j.sh
+            $<TARGET_FILE:engine>
+            ${PLUGIN_OUT_DIR}
+    DEPENDS engine plugins
+    COMMENT "validate log4j rules against positive/negative samples"
+    VERBATIM
+)
+
+add_custom_target(compare_log4j
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/misc/compare_log4j_regex.sh
+            $<TARGET_FILE:engine>
+            ${PLUGIN_OUT_DIR}
+    DEPENDS engine plugins
+    COMMENT "compare log4j rules vs typical WAF regex signatures"
     VERBATIM
 )
 

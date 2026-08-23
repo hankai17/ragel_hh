@@ -177,6 +177,9 @@ const std::vector<std::string> kFastPathTokens = {
     "=", "or ", "and ", "'", "--", "/*",
     // XSS
     "<script",
+    // log4j 查找表达式（Log4Shell 类；命中才进入 log4j 规则深检）
+    "${", "jndi:", "ldap://", "ldaps://", "rmi://", "dns://",
+    "iiop://", "corba://", "env:", "sys:", "docker:", "k8s:", "aws:",
 };
 
 std::vector<std::string> fastPathHit(const std::string& normalized) {
