@@ -86,6 +86,18 @@ check_rule "SELECT LOAD_FILE('/etc/passwd')"   load_file
 check_rule "SELECT BENCHMARK(10000000, MD5('x'))" benchmark
 
 # ------------------------------------------------------------
+# 语法层：CFG 递归 / 嵌套子查询（ragel fcall/fret）
+# ------------------------------------------------------------
+check_rule "SELECT * FROM (SELECT * FROM t) WHERE 1=1" always_true
+check_rule "SELECT * FROM (SELECT * FROM t WHERE 1=1)" always_true
+check_rule "SELECT * FROM (SELECT * FROM (SELECT * FROM t)) WHERE (1)=(1)" always_true
+check_rule "SELECT * FROM t WHERE (1)=(1)" always_true
+check_rule "SELECT ((1+2))*3 FROM t WHERE 1=1" always_true
+check_rule "SELECT * FROM (SELECT * FROM t)" NONE
+check_rule "SELECT * FROM (SELECT * FROM (SELECT * FROM t)) WHERE id = 1" NONE
+check_rule "SELECT * FROM (SELECT * FROM t WHERE 2=1)" NONE
+
+# ------------------------------------------------------------
 # 负样本：不误报
 # ------------------------------------------------------------
 check_rule "SELECT name FROM users WHERE id = 1" NONE

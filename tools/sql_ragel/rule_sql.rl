@@ -7,12 +7,30 @@
  *   expr_list / select_stmt / table_ref / constant_value
  *
  * 实现方式：Ragel 是字符级 DFA，这里把"token 类型"当作字母表
- * （8 位），在词法层输出的 token 数组上直接跑状态机。括号嵌套
- * 按深度展开（primaryN -> expr(N-1)），深度受 DFA 规模约束。
+ * （8 位），在词法层输出的 token 数组上直接跑状态机。
+ *
+ * CFG 递归（括号嵌套 / 子查询）用 Ragel 的 fcall/fret 实现：
+ *   primary 的 (expr)          -> fcall expr_call
+ *   primary 的 f(expr_list)    -> fcall elist_call
+ *   table_ref 的 (select_stmt) -> fcall select_call
+ *   constant_value 的 (...)... -> fcall const_call
+ *
+ * 递归的关键设计（避免 ragel 的"提前结束"陷阱）：
+ *   ragel 的结束动作 @act 挂在"规则可能结束"的转移上。若规则结尾
+ *   有可选/重复结构（如 select_stmt 的 (FROM ..)? / (WHERE ..)?），
+ *   该动作会在第一个可能结束点触发 —— 对 fret 是灾难：弹出调用帧后
+ *   后续结构全部丢失。解决办法：
+ *     (1) 被调 entry 以强制 token 结尾：expr_call := expr ')' 等，
+ *         RPAREN 是被调方消费，entry 的结束点无歧义；
+ *     (2) fret 手动实现（不用 @ret 包装），出栈后仅在栈空
+ *         （top==0，即最外层调用完成）时写 match_len，此时 p 恰好
+ *         落在整个递归体的真正末尾。
+ *   main 的结束动作 note_* 同样加 top==0 守卫，避免嵌套中途写入
+ *   错误的局部长度。
+ *
  * 三个顶层结构（expr / select_stmt / constant_value）各占一个
- * 独立 machine（避免 join 子集构造导致状态爆炸），每个 machine
- * 块内完整定义所需的深度链；run_*() 中用
- *   %%{ machine <name>; write exec; }%%
+ * 独立 machine，run_*() 中用
+ *     %%{ machine <name>; write exec; }%%
  * 显式绑定 exec 到对应 machine，避免默认展开到最后一个 machine。
  *
  * 语义谓词（isIdent / numbersEqual / stringsEqual /
@@ -28,6 +46,11 @@
 #include <string.h>
 
 #include "sql_tokens.h"
+
+/* fcall/fret 运行期栈大小。最深输入为纯括号串：n 个 token 最多
+ * n/2 层调用（每层至少消耗 LPAREN+RPAREN 两个 token），
+ * MAX_TOK=1024 时取 1024 留足余量。 */
+#define CFG_STACKSZ 1024
 
 /* ------------------------------------------------------------
  * 语义层：规则共享语义谓词（对齐 RuleSQL.g4 @parser::members）
@@ -120,8 +143,14 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
 
 /* ------------------------------------------------------------
  * Ragel token 级状态机：三个独立入口机器（expr / select / const），
- * 状态图。action note_* 记录匹配区间：
- * p 指向最后一个消费 token，len = p - start + 1。
+ * 每个机器两个入口：main（顶层匹配入口）+ 递归 entry（fcall 目标）。
+ *
+ * 手动 fret（不用 @ret 包装）：
+ *     if (top > 0) cs = stack[--top];
+ *     if (top == 0) match_len = (int)(p - types) + 1 - start;
+ *     goto _again;
+ * 出栈后仅当栈空（最外层调用结束）才记录长度 —— 内层 ret 不会留下
+ * 错误的局部长度；最外层 ret 触发时 p 恰为整个递归体的末尾。
  * ------------------------------------------------------------ */
 
 %%{
@@ -140,45 +169,32 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
     add_op = PLUS | MINUS | PIPE2;
     mul_op = STAR | DIV | MOD;
 
-    # ---- 深度 0 ----
-    primary0 = NUMBER | STRING | TRUE | FALSE | NULL | IDENT;
-    unary0   = ( PLUS | MINUS )* primary0;
-    mul0     = unary0 ( mul_op unary0 )*;
-    add0     = mul0 ( add_op mul0 )*;
-    comparison0 = add0 ( cmp_op add0 )?;
-    not0     = NOT* comparison0;
-    and0     = not0 ( AND not0 )*;
-    or0      = and0 ( OR and0 )*;
-    expr0    = or0;
-    expr_list0 = expr0 ( COMMA expr0 )*;
-    # ---- 深度 1 ----
-    primary1 = NUMBER | STRING | TRUE | FALSE | NULL
-             | IDENT ( LPAREN expr_list0? RPAREN )?
-             | LPAREN expr0 RPAREN;
-    unary1   = ( PLUS | MINUS )* primary1;
-    mul1     = unary1 ( mul_op unary1 )*;
-    add1     = mul1 ( add_op mul1 )*;
-    comparison1 = add1 ( cmp_op add1 )?;
-    not1     = NOT* comparison1;
-    and1     = not1 ( AND not1 )*;
-    or1      = and1 ( OR and1 )*;
-    expr1    = or1;
-    expr_list1 = expr1 ( COMMA expr1 )*;
-    # ---- 深度 2 ----
-    primary2 = NUMBER | STRING | TRUE | FALSE | NULL
-             | IDENT ( LPAREN expr_list1? RPAREN )?
-             | LPAREN expr1 RPAREN;
-    unary2   = ( PLUS | MINUS )* primary2;
-    mul2     = unary2 ( mul_op unary2 )*;
-    add2     = mul2 ( add_op mul2 )*;
-    comparison2 = add2 ( cmp_op add2 )?;
-    not2     = NOT* comparison2;
-    and2     = not2 ( AND not2 )*;
-    or2      = and2 ( OR and2 )*;
-    expr2    = or2;
-    expr_list2 = expr2 ( COMMA expr2 )*;
-    action note_expr { match_len = (int)(p - types) + 1 - start; }
-    main := expr2 @note_expr;
+    # 递归全部走 fcall/fret，规则图保持无环（ragel 禁止循环图引用）：
+    #   (expr)          LPAREN 处 fcall expr_call，被调方消费 RPAREN
+    #   f(expr_list)    LPAREN 处 fcall elist_call，被调方消费 RPAREN
+    action call_expr  { fcall expr_call; }
+    action call_elist { fcall elist_call; }
+    action ret_expr   { if (top > 0) cs = stack[--top];
+                        if (top == 0) match_len = (int)(p - types) + 1 - start;
+                        goto _again; }
+
+    primary = NUMBER | STRING | TRUE | FALSE | NULL
+            | IDENT ( LPAREN @call_elist )?
+            | LPAREN @call_expr;
+    unary_expr = ( PLUS | MINUS )* primary;
+    mul_expr = unary_expr ( mul_op unary_expr )*;
+    add_expr = mul_expr ( add_op mul_expr )*;
+    comparison = add_expr ( cmp_op add_expr )?;
+    not_expr = NOT* comparison;
+    and_expr = not_expr ( AND not_expr )*;
+    or_expr = and_expr ( OR and_expr )*;
+    expr = or_expr;
+    expr_list = expr ( COMMA expr )*;
+
+    action note_expr { if (top == 0) match_len = (int)(p - types) + 1 - start; }
+    main := expr @note_expr;
+    expr_call := expr RPAREN @ret_expr;
+    elist_call := expr_list? RPAREN @ret_expr;
     write data noerror nofinal noentry;
 }%%
 
@@ -198,38 +214,43 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
     add_op = PLUS | MINUS | PIPE2;
     mul_op = STAR | DIV | MOD;
 
-    # ---- 深度 0 ----
-    primary0 = NUMBER | STRING | TRUE | FALSE | NULL | IDENT;
-    unary0   = ( PLUS | MINUS )* primary0;
-    mul0     = unary0 ( mul_op unary0 )*;
-    add0     = mul0 ( add_op mul0 )*;
-    comparison0 = add0 ( cmp_op add0 )?;
-    not0     = NOT* comparison0;
-    and0     = not0 ( AND not0 )*;
-    or0      = and0 ( OR and0 )*;
-    expr0    = or0;
-    expr_list0 = expr0 ( COMMA expr0 )*;
-    # ---- 深度 1 ----
-    primary1 = NUMBER | STRING | TRUE | FALSE | NULL
-             | IDENT ( LPAREN expr_list0? RPAREN )?
-             | LPAREN expr0 RPAREN;
-    unary1   = ( PLUS | MINUS )* primary1;
-    mul1     = unary1 ( mul_op unary1 )*;
-    add1     = mul1 ( add_op mul1 )*;
-    comparison1 = add1 ( cmp_op add1 )?;
-    not1     = NOT* comparison1;
-    and1     = not1 ( AND not1 )*;
-    or1      = and1 ( OR and1 )*;
-    expr1    = or1;
-    expr_list1 = expr1 ( COMMA expr1 )*;
-        # ---- 最小 SELECT 形状（省略子查询递归 table_ref；WHERE/子句内嵌
-    # 2 层表达式。ANTLR 版支持任意深子查询，此处为控制 DFA 规模
-    # 做了限制，可按需展开恢复）----
-    select_stmt = SELECT ( STAR | expr_list1 )
-                  ( FROM IDENT )?
-                  ( WHERE expr1 )?;
-    action note_select { match_len = (int)(p - types) + 1 - start; }
+    action call_expr  { fcall expr_call; }
+    action call_elist { fcall elist_call; }
+    action call_sel   { fcall select_call; }
+    action ret_expr   { if (top > 0) cs = stack[--top];
+                        if (top == 0) match_len = (int)(p - types) + 1 - start;
+                        goto _again; }
+    action ret_sel    { if (top > 0) cs = stack[--top];
+                        if (top == 0) match_len = (int)(p - types) + 1 - start;
+                        goto _again; }
+
+    # ---- expr 骨架（与 rule_expr 相同，递归走 fcall/fret）----
+    primary = NUMBER | STRING | TRUE | FALSE | NULL
+            | IDENT ( LPAREN @call_elist )?
+            | LPAREN @call_expr;
+    unary_expr = ( PLUS | MINUS )* primary;
+    mul_expr = unary_expr ( mul_op unary_expr )*;
+    add_expr = mul_expr ( add_op mul_expr )*;
+    comparison = add_expr ( cmp_op add_expr )?;
+    not_expr = NOT* comparison;
+    and_expr = not_expr ( AND not_expr )*;
+    or_expr = and_expr ( OR and_expr )*;
+    expr = or_expr;
+    expr_list = expr ( COMMA expr )*;
+
+    # ---- table_ref：IDENT 或 (select_stmt) 递归子查询。
+    # LPAREN 处 fcall select_call，被调方匹配完整子 SELECT 及
+    # 其 RPAREN 后返回 —— 任意深度嵌套。 ----
+    table_ref = IDENT | LPAREN @call_sel;
+    select_stmt = SELECT ( STAR | expr_list )
+                  ( FROM table_ref )?
+                  ( WHERE expr )?;
+
+    action note_select { if (top == 0) match_len = (int)(p - types) + 1 - start; }
     main := select_stmt @note_select;
+    select_call := select_stmt RPAREN @ret_sel;
+    expr_call := expr RPAREN @ret_expr;
+    elist_call := expr_list? RPAREN @ret_expr;
     write data noerror nofinal noentry;
 }%%
 
@@ -245,18 +266,18 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
     PLUS = 41;   MINUS = 42;  STAR = 43;  DIV = 44;   MOD = 45;   PIPE2 = 46;
     LPAREN = 47; RPAREN = 48; COMMA = 49; SEMI = 50;
 
-        cmp_op = EQ | NE | LE | GE | LT | GT;
-    add_op = PLUS | MINUS | PIPE2;
-    mul_op = STAR | DIV | MOD;
+    # 常量值括号递归：字面量或任意层括号包裹（1 / (1) / ((1))）
+    action call_const { fcall const_call; }
+    action ret_const  { if (top > 0) cs = stack[--top];
+                        if (top == 0) match_len = (int)(p - types) + 1 - start;
+                        goto _again; }
 
-        # ---- 常量值：字面量或任意层括号包裹 ----
-    constant_value0 = NUMBER | STRING | TRUE | FALSE | NULL;
-    constant_value1 = NUMBER | STRING | TRUE | FALSE | NULL
-                    | LPAREN constant_value0 RPAREN;
-    constant_value2 = NUMBER | STRING | TRUE | FALSE | NULL
-                    | LPAREN constant_value1 RPAREN;
-    action note_const { match_len = (int)(p - types) + 1 - start; }
-    main := constant_value2 @note_const;
+    constant_value = NUMBER | STRING | TRUE | FALSE | NULL
+                   | LPAREN @call_const;
+
+    action note_const { if (top == 0) match_len = (int)(p - types) + 1 - start; }
+    main := constant_value @note_const;
+    const_call := constant_value RPAREN @ret_const;
     write data noerror nofinal noentry;
 }%%
 static int run_expr(const int* types, int n, int start, int* len) {
@@ -264,6 +285,8 @@ static int run_expr(const int* types, int n, int start, int* len) {
     const int* pe = types + n;
     int cs = rule_expr_start;
     int match_len = 0;
+    int stack[CFG_STACKSZ];
+    int top = 0;
 
     %%{
         machine rule_expr;
@@ -281,6 +304,8 @@ static int run_select(const int* types, int n, int start, int* len) {
     const int* pe = types + n;
     int cs = rule_select_start;
     int match_len = 0;
+    int stack[CFG_STACKSZ];
+    int top = 0;
 
     %%{
         machine rule_select;
@@ -298,6 +323,8 @@ static int run_const(const int* types, int n, int start, int* len) {
     const int* pe = types + n;
     int cs = rule_const_start;
     int match_len = 0;
+    int stack[CFG_STACKSZ];
+    int top = 0;
 
     %%{
         machine rule_const;
