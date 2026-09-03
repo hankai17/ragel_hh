@@ -3,7 +3,13 @@
  * ------------------------------------------------------------
  * 两个命名段，供各规则文件按名 include：
  *   include rule_shared_tok  "rule_shared.rl";   token 编号 + 运算符
- *   include rule_shared_expr "rule_shared.rl";   expr 递归骨架
+ *   include rule_shared_expr "rule_shared.rl";   expr 规则链
+ *                                                （primary~expr_list + fcall 动作）
+ *
+ * rule_shared_expr 不含递归入口（:=）与返回动作：rule_sql 与 sqli
+ * 的返回语义不同（前者在最外层返回时写 match_len，后者不写），
+ * 故由使用方各自定义。
+ *
  * Ragel include 语义：仅段名与 include 名匹配时才并入宿主机器，
  * 本文件不单独编译（只被 rule_*.rl 引用）。
  * ============================================================ */
@@ -28,13 +34,10 @@
 %%{
     machine rule_shared_expr;
     # expr 递归骨架（token 级，常量来自 rule_shared_tok）：
-    #   括号 / f(...) 递归走 fcall 到 expr_call / elist_call。
-    # 递归入口（:=）与动作随 include 并入宿主机器，各宿主各自持有一份。
+    #   括号 / f(...) 递归走 fcall 到 expr_call / elist_call，
+    #   入口与返回动作由使用方定义（见本文件头）。
     action call_expr  { fcall expr_call; }
     action call_elist { fcall elist_call; }
-    action ret_expr   { if (top > 0) cs = stack[--top];
-                        if (top == 0) match_len = (int)(p - types) + 1 - start;
-                        goto _again; }
 
     primary = NUMBER | STRING | TRUE | FALSE | NULL
             | IDENT ( LPAREN @call_elist )?
@@ -48,7 +51,4 @@
     or_expr = and_expr ( OR and_expr )*;
     expr = or_expr;
     expr_list = expr ( COMMA expr )*;
-
-    expr_call := expr RPAREN @ret_expr;
-    elist_call := expr_list? RPAREN @ret_expr;
 }%%

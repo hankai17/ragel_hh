@@ -161,6 +161,12 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
     include rule_shared_tok  "rule_shared.rl";
     include rule_shared_expr "rule_shared.rl";
 
+    action ret_expr   { if (top > 0) cs = stack[--top];
+                        if (top == 0) match_len = (int)(p - types) + 1 - start;
+                        goto _again; }
+    expr_call := expr RPAREN @ret_expr;
+    elist_call := expr_list? RPAREN @ret_expr;
+
     action note_expr { if (top == 0) match_len = (int)(p - types) + 1 - start; }
     main := expr @note_expr;
     write data noerror nofinal noentry;
@@ -170,6 +176,12 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
     machine rule_select;
     include rule_shared_tok  "rule_shared.rl";
     include rule_shared_expr "rule_shared.rl";
+
+    action ret_expr   { if (top > 0) cs = stack[--top];
+                        if (top == 0) match_len = (int)(p - types) + 1 - start;
+                        goto _again; }
+    expr_call := expr RPAREN @ret_expr;
+    elist_call := expr_list? RPAREN @ret_expr;
 
     action call_sel { fcall select_call; }
     action ret_sel  { if (top > 0) cs = stack[--top];
