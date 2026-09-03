@@ -1,53 +1,73 @@
 #!/usr/bin/env bash
-# ============================================================
-# SQLTokens + RuleSQL（Ragel 模拟）测试
-# ------------------------------------------------------------
-# 断言：
-#   1. 词法层 token 序列（tokens: ... 行）
-#   2. 语法层规则命中（!! <rule> 行），语料对齐 misc/validate_sqli.sh
-# usage: test.sh [scan_binary]
-# ============================================================
+# sql_tokens + rule_sql 骨架测试
+# 三类断言：
+#   1. 词法：tokens(n): 行内容
+#   2. 骨架：从位置 0 能否命中 expr / select_stmt / constant_value
+#   3. whole：select_stmt 是否整条覆盖（识别为完整 SELECT 语句）
+# 用法：test.sh [scan_binary]
 set -u
 
 SCAN="${1:-./sql_scan}"
 pass=0
 fail=0
 
-# check_tokens <payload> <期望 token 序列（空格分隔）>
+# check_tokens <payload> <期望的 token 序列片段>
 check_tokens() {
     local payload="$1" expect="$2" got
-    got=$("$SCAN" "$payload" | grep -oP '^tokens\(\d+\):.*' | head -1)
-    if printf '%s\n' "$got" | grep -q "$expect"; then
-        printf '[PASS] tokens  %-28s %s\n' "$payload" "$expect"
+    got=$("$SCAN" "$payload" | sed -n 's/^tokens([0-9]*): //p' | head -1)
+    if printf '%s\n' "$got" | grep -qF "$expect"; then
+        printf '[PASS] tokens  %-34s %s\n' "$payload" "$expect"
         pass=$((pass + 1))
     else
-        printf '[FAIL] tokens  %-28s expect "%s"\n       got: %s\n' \
+        printf '[FAIL] tokens  %-34s expect "%s"\n       got: %s\n' \
             "$payload" "$expect" "$got"
         fail=$((fail + 1))
     fi
 }
 
-# check_rule <payload> <期望规则名>；RULE_NONE 表示无任何命中
-check_rule() {
-    local payload="$1" expect="$2" out ok=1
+# check_skeleton <payload> <expr|select_stmt|constant_value|NONE>
+# 期望该骨架从位置 0 命中；NONE 表示三个骨架都不命中
+check_skeleton() {
+    local payload="$1" kind="$2" out
     out=$("$SCAN" "$payload")
-    if [[ "$expect" == "NONE" ]]; then
-        printf '%s\n' "$out" | grep -q '!! ' && ok=0
-    else
-        printf '%s\n' "$out" | grep -q "!! ${expect} " || ok=0
-    fi
-    if [[ $ok == 1 ]]; then
-        printf '[PASS] rule    %-28s %s\n' "$payload" "$expect"
+    if [[ "$kind" == "NONE" ]]; then
+        if printf '%s\n' "$out" | grep -qE '^  (expr|select_stmt|constant_value) \['; then
+            printf '[FAIL] skeleton %-34s expect none\n%s\n' "$payload" "$out"
+            fail=$((fail + 1))
+        else
+            printf '[PASS] skeleton %-34s none\n' "$payload"
+            pass=$((pass + 1))
+        fi
+    elif printf '%s\n' "$out" | grep -qE "^  ${kind} \[0,"; then
+        printf '[PASS] skeleton %-34s %s\n' "$payload" "$kind"
         pass=$((pass + 1))
     else
-        printf '[FAIL] rule    %-28s expect %s\n%s\n' \
-            "$payload" "$expect" "$out"
+        printf '[FAIL] skeleton %-34s expect %s\n%s\n' "$payload" "$kind" "$out"
+        fail=$((fail + 1))
+    fi
+}
+
+# check_whole <payload> <yes|no>：select_stmt 是否整条覆盖
+check_whole() {
+    local payload="$1" want="$2" out
+    out=$("$SCAN" "$payload")
+    if printf '%s\n' "$out" | grep -qE '^  select_stmt \[0,.*\(whole\)$'; then
+        got=yes
+    else
+        got=no
+    fi
+    if [[ "$got" == "$want" ]]; then
+        printf '[PASS] whole   %-34s %s\n' "$payload" "$want"
+        pass=$((pass + 1))
+    else
+        printf '[FAIL] whole   %-34s expect %s, got %s\n%s\n' \
+            "$payload" "$want" "$got" "$out"
         fail=$((fail + 1))
     fi
 }
 
 # ------------------------------------------------------------
-# 词法层：token 序列
+# 词法：token 序列
 # ------------------------------------------------------------
 check_tokens "SELECT * FROM users WHERE 1=1"   "SELECT STAR FROM IDENT WHERE NUMBER EQ NUMBER"
 check_tokens "1;DROP TABLE users"              "NUMBER SEMI DROP IDENT IDENT"
@@ -59,54 +79,45 @@ check_tokens "a <= b"                          "IDENT LE IDENT"
 check_tokens "x || y"                          "IDENT PIPE2 IDENT"
 check_tokens "1; -- comment
 SELECT 2"                                      "NUMBER SEMI SELECT NUMBER"
-
-# 悬空引号容错：admin' 中引号被跳过，UNION 等仍被识别
 check_tokens "admin' OR '1'='1'"               "IDENT OR STRING EQ STRING"
-
-# 大小写不敏感关键字映射
 check_tokens "SeLeCt * FrOm t WhErE 1=1"       "SELECT STAR FROM IDENT WHERE NUMBER EQ NUMBER"
 
 # ------------------------------------------------------------
-# 语法层：规则命中（正样本）
+# 骨架：从位置 0 命中的类型
 # ------------------------------------------------------------
-check_rule "SELECT * FROM users WHERE 1=1"     always_true
-check_rule "2=2"                               always_true
-check_rule "1=(1)"                             always_true
-check_rule "SELECT * FROM t WHERE 'a'='a'"     string_tautology
-check_rule "'a'='a'"                           string_tautology
-check_rule "SELECT * FROM t WHERE a=1 OR 1=2"  boolean_injection
-check_rule "1 OR 1=1"                          boolean_injection
-check_rule "admin' OR '1'='1' --"              boolean_injection
-check_rule "SELECT id,name FROM users UNION SELECT user,password FROM admin" union_select
-check_rule "UNION SELECT 1,2,3"                union_select
-check_rule "x' UNION SELECT 1,2,3"             union_select
-check_rule "SELECT SLEEP(5)"                   sleep
-check_rule "pg_sleep(5)"                       pg_sleep
-check_rule "SELECT LOAD_FILE('/etc/passwd')"   load_file
-check_rule "SELECT BENCHMARK(10000000, MD5('x'))" benchmark
+check_skeleton "1=1"                           expr
+check_skeleton "1=(1)"                         expr
+check_skeleton "a=1 OR 1=2"                    expr
+check_skeleton "(1+2)*3"                       expr
+check_skeleton "age > 18"                      expr
+check_skeleton "'a'='a'"                       expr
+check_skeleton "(1)=(1)"                 constant_value
+check_skeleton "(1)"                           constant_value
+check_skeleton "SELECT * FROM users WHERE 1=1" select_stmt
+check_skeleton "SELECT * FROM (SELECT * FROM t) WHERE 1=1" select_stmt
+check_skeleton "SELECT"                        NONE
+check_skeleton ";"                             NONE
+check_skeleton "*"                             NONE
 
 # ------------------------------------------------------------
-# 语法层：CFG 递归 / 嵌套子查询（ragel fcall/fret）
+# whole：识别为一条完整 SELECT
 # ------------------------------------------------------------
-check_rule "SELECT * FROM (SELECT * FROM t) WHERE 1=1" always_true
-check_rule "SELECT * FROM (SELECT * FROM t WHERE 1=1)" always_true
-check_rule "SELECT * FROM (SELECT * FROM (SELECT * FROM t)) WHERE (1)=(1)" always_true
-check_rule "SELECT * FROM t WHERE (1)=(1)" always_true
-check_rule "SELECT ((1+2))*3 FROM t WHERE 1=1" always_true
-check_rule "SELECT * FROM (SELECT * FROM t)" NONE
-check_rule "SELECT * FROM (SELECT * FROM (SELECT * FROM t)) WHERE id = 1" NONE
-check_rule "SELECT * FROM (SELECT * FROM t WHERE 2=1)" NONE
-
-# ------------------------------------------------------------
-# 负样本：不误报
-# ------------------------------------------------------------
-check_rule "SELECT name FROM users WHERE id = 1" NONE
-check_rule "SELECT 42"                         NONE
-check_rule "SELECT * FROM t WHERE a = 1 AND b = 2" NONE
-check_rule "hello world"                       NONE
-check_rule "id=1"                              NONE
-check_rule "abc"                               NONE
-check_rule "age > 18"                          NONE
+check_whole "SELECT * FROM users WHERE 1=1"       yes
+check_whole "SELECT id FROM a"                    yes
+check_whole "SELECT 1+1=2"                        yes
+check_whole "SELECT id,name FROM users"           yes
+check_whole "SELECT * FROM (SELECT * FROM t) WHERE 1=1" yes
+check_whole "SELECT * FROM (SELECT * FROM (SELECT * FROM t)) WHERE 1=1" yes
+check_whole "SELECT * FROM t WHERE (1)=(1)"       yes
+check_whole "SELECT ((1+2))*3 FROM t"             yes
+check_whole "SeLeCt * FrOm t WhErE 1=1"           yes
+check_whole "SELECT * FROM (SELECT * FROM t WHERE 1=1)" yes
+check_whole "SELECT * FROM t UNION SELECT id FROM u" no
+check_whole "1=1"                                 no
+check_whole "SELECT"                              no
+check_whole "SELECT 1;DROP TABLE users"           no
+check_whole "1;DROP TABLE users"                  no
+check_whole "(SELECT id FROM t)"                  no
 
 echo
 echo "summary: $pass passed, $fail failed"
