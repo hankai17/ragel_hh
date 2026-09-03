@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# sqli_rules.g4（24 条攻击规则）Ragel 移植测试
+# sqli_rules.rl（24 条 SQLi 攻击规则，antlr4 sqli_rules.g4 的 Ragel 移植）测试
 # ------------------------------------------------------------
 # 断言（sqli_scan 输出 `!! <rule> [s,e) "..."` 行）：
 #   hit  <payload> <rule>   至少命中 rule

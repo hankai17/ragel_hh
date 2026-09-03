@@ -4,7 +4,7 @@
 # ------------------------------------------------------------
 # 断言每个载荷的分类（首个命中即可）：
 #   JNDI / SENSITIVE / CHAIN / EXPR / NONE
-# 用例与 misc/validate_log4j.sh 对齐（ANTLR 规则同语料）。
+# 用例与归档的 ANTLR validate_log4j.sh 对齐（同语料）。
 # usage: test.sh [scan_binary]
 # ============================================================
 set -u

@@ -1,16 +1,19 @@
 /* ============================================================
- * sqli_scan.c — sqli_rules.g4（24 条攻击规则）的 Ragel 模拟驱动
+ * sqli_scan.c — sqli_rules.rl（24 条 SQLi 攻击规则）的最小驱动/示例
  * ------------------------------------------------------------
- * 对每个输入串：
+ * 作为 rules/ragel/ 规则库自带的调用示例，演示"调用方视角"：
  *   1) 词法层（sql_tokens.rl）扫描 -> token 流
  *   2) sqli_rules.rl 的 24 个规则入口在 token 类型数组上
- *      逐位置独立匹配（对齐 rulec/wrapper 逐条匹配语义）
+ *      逐位置独立匹配（对齐已归档 antlr4 rulec/wrapper 逐条匹配）
  *   3) 语义谓词分工：
  *      - isIdent（sleep/load_file/benchmark/pg_sleep/
  *        db_enumeration）在 rl 动作内判定
  *      - constNumbersEqual / constStringsEqual（always_true /
  *        string_tautology）在此复核：rl 只保证结构，本层用
  *        sql_match_const 求两侧 constant_value 区间并判等
+ *
+ * 调用方只需 include sql_tokens.h / rule_sql.h / sqli_rules.h 并链接
+ * libragel_sql（sql_tokens + rule_sql + sqli_rules 打包），无需 ragel。
  *
  * 用法：./sqli_scan '<payload>' [<payload>...]
  * ============================================================ */
@@ -19,43 +22,8 @@
 #include <string.h>
 
 #include "sql_tokens.h"
-
-/* sqli_rules.rl：24 个规则入口（结构匹配 + isIdent 谓词） */
-#define SQLI_ENTRY(name) \
-    extern int sql_match_sqli_##name(const int* types, int n, int start, \
-                                     const Token* tk, int* len);
-SQLI_ENTRY(always_true)
-SQLI_ENTRY(string_tautology)
-SQLI_ENTRY(boolean_injection)
-SQLI_ENTRY(union_select)
-SQLI_ENTRY(stacked_query)
-SQLI_ENTRY(sleep)
-SQLI_ENTRY(load_file)
-SQLI_ENTRY(benchmark)
-SQLI_ENTRY(pg_sleep)
-SQLI_ENTRY(subquery)
-SQLI_ENTRY(exists_subquery)
-SQLI_ENTRY(in_subquery)
-SQLI_ENTRY(like_expr)
-SQLI_ENTRY(between_expr)
-SQLI_ENTRY(numeric_expr)
-SQLI_ENTRY(order_by_expr)
-SQLI_ENTRY(limit_expr)
-SQLI_ENTRY(string_concat)
-SQLI_ENTRY(insert_fragment)
-SQLI_ENTRY(update_fragment)
-SQLI_ENTRY(delete_fragment)
-SQLI_ENTRY(select_fragment)
-SQLI_ENTRY(select_from_fragment)
-SQLI_ENTRY(db_enumeration)
-#undef SQLI_ENTRY
-
-/* rule_sql.rl：constant_value 骨架 + 常量相等谓词（谓词复核用） */
-extern int sql_match_const(const int* types, int n, int start, int* len);
-extern int sql_const_numbers_equal(const Token* tk, int s0, int e0,
-                                   int s1, int e1);
-extern int sql_const_strings_equal(const Token* tk, int s0, int e0,
-                                   int s1, int e1);
+#include "rule_sql.h"
+#include "sqli_rules.h"
 
 #define MAX_TOK 1024
 

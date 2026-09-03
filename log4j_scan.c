@@ -3,7 +3,7 @@
  * ------------------------------------------------------------
  * 对每个输入串调用 log4j_scan() 收集命中并打印分类：
  *   JNDI / SENSITIVE[（前缀）] / CHAIN / EXPR，无命中打印 (none)。
- * 输出格式与 antlr4 版 validate_log4j.sh 断言对齐。
+ * 输出格式与归档的 antlr4 版 validate_log4j.sh 断言对齐。
  *
  * 用法：./log4j_scan '<payload>' [<payload>...]
  * 构建：与 log4j_lookup.c（由 log4j_lookup.rl 生成）链接。

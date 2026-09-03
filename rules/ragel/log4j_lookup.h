@@ -1,8 +1,8 @@
 /* ============================================================
  * log4j_lookup.h — log4j 查找表达式识别库接口
  * ------------------------------------------------------------
- * 对应 rules/antlr4/_shared/{Log4jTokens,Log4jLookup}.g4 与
- * rules/antlr4/log4j/log4j_rules.g4 覆盖的判定面，Ragel 实现：
+ * 对应已归档 antlr4 规则 _shared/{Log4jTokens,Log4jLookup}.g4 与
+ * log4j/log4j_rules.g4 覆盖的判定面，Ragel 实现：
  *   状态机层识别 ${...} 查找表达式（有界深度嵌套），
  *   语义层归约前缀并分类：JNDI / SENSITIVE / CHAIN / EXPR。
  *

@@ -5,7 +5,7 @@
  *   1) 词法层（sql_tokens.rl）扫描 -> token 流
  *   2) 语法层（rule_sql.rl）在 token 类型数组上逐位置匹配：
  *      expr / select_stmt / constant_value 骨架
- *   3) 若干代表性规则（对齐 sqli_rules.g4 语义）命中报告：
+ *   3) 若干代表性规则（对齐 sqli_rules.rl 语义）命中报告：
  *      always_true / string_tautology / boolean_injection /
  *      union_select / sleep / load_file / benchmark / pg_sleep
  *
@@ -16,17 +16,7 @@
 #include <string.h>
 
 #include "sql_tokens.h"
-
-/* 语法层（rule_sql.rl）：输入为 token 类型 int 数组 */
-extern int sql_match_expr(const int* types, int n, int start, int* len);
-extern int sql_match_select(const int* types, int n, int start, int* len);
-extern int sql_match_const(const int* types, int n, int start, int* len);
-/* 语义谓词（rule_sql.rl，对齐 RuleSQL.g4 @parser::members） */
-extern int sql_is_ident(const Token* t, const char* expected);
-extern int sql_const_numbers_equal(const Token* tk, int s0, int e0,
-                                   int s1, int e1);
-extern int sql_const_strings_equal(const Token* tk, int s0, int e0,
-                                   int s1, int e1);
+#include "rule_sql.h"
 
 #define MAX_TOK 1024
 
