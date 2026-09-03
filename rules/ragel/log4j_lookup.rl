@@ -1,6 +1,10 @@
 /* ============================================================
- * log4j_scan.rl — log4j 查找表达式识别与攻击防护状态机（Ragel）
+ * log4j_lookup.rl — log4j 查找表达式识别与攻击防护状态机（Ragel）
  * ------------------------------------------------------------
+ * 定位：rules/ragel/ 下的"规则库"（对应 rules/antlr4/log4j 那套
+ * g4 的判定面），生成 C 后导出 log4j_scan() 供调用方链接；
+ * 驱动（tools/ragel/log4j_scan.c）只消费本库接口，不接触实现。
+ *
  * 分工：
  *   Ragel 状态机（语法层）：识别 `${...}` 表达式，含有界深度嵌套
  *     （expr0..expr4，最深 4 层；Ragel 是 DFA，无法表达无界递归，
@@ -13,8 +17,7 @@
  *       CHAIN     无 jndi 但存在嵌套查找链
  *       EXPR      ${...} 结构识别（信息层）
  *
- * 生成：ragel -C -o log4j_scan.c log4j_scan.rl（见 Makefile）
- * 用法：./log4j_scan '<payload>' [<payload>...]
+ * 生成：ragel -C -o log4j_lookup.c log4j_lookup.rl
  * ============================================================ */
 
 #include <ctype.h>
@@ -22,6 +25,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "log4j_lookup.h"
 
 /* ------------------------------------------------------------
  * 语义层：span 工具 + 前缀解析 + 分类
@@ -195,7 +200,8 @@ static bool is_sensitive(const char* p) {
     return false;
 }
 
-/* 分类：JNDI > SENSITIVE > CHAIN > EXPR */
+/* 分类：JNDI > SENSITIVE > CHAIN > EXPR
+ * 返回静态分类名；SENSITIVE 时把前缀关键字写入 detail。 */
 static const char* classify(span b, char* detail, size_t dcap) {
     int tc = top_colon(b);
     if (tc < 0) return "EXPR";
@@ -216,32 +222,32 @@ static const char* classify(span b, char* detail, size_t dcap) {
 }
 
 /* ------------------------------------------------------------
- * Ragel 扫描器
+ * Ragel 扫描器：收集 ${...} 命中到调用方数组
  * ------------------------------------------------------------ */
 
-const char* ts;         /* Ragel scanner 维护的 token 起始 */
-const char* te;         /* Ragel scanner 维护的 token 结束 */
-int act;                /* Ragel scanner 维护的 action 编号 */
-static int match_count; /* 本次扫描命中表达式数 */
+static const char* ts;         /* Ragel scanner 维护的 token 起始 */
+static const char* te;         /* Ragel scanner 维护的 token 结束 */
+static int act;                /* Ragel scanner 维护的 action 编号 */
+static Log4jHit* g_hits;       /* 命中收集目标（本次扫描） */
+static int g_cap;              /* 收集上限 */
+static int g_count;            /* 已收集数 */
 
-static void on_expr(const char* b, const char* e) {
-    static char buf[4096];
-    size_t len = (size_t)(e - b);
+static void collect_expr(void) {
+    if (g_count >= g_cap) return;
+    size_t len = (size_t)(te - ts);
+    char buf[4096];
     if (len >= sizeof(buf)) len = sizeof(buf) - 1;
-    memcpy(buf, b, len);
+    memcpy(buf, ts, len);
     buf[len] = '\0';
 
-    span body = make_span(buf + 2, (int)len - 2); /* 剥掉 ${ 和 } */
-    char detail[64] = "";
-    const char* cls = classify(body, detail, sizeof(detail));
-    char label[96];
-    if (strcmp(cls, "SENSITIVE") == 0 && detail[0]) {
-        snprintf(label, sizeof(label), "%s(%s)", cls, detail);
-    } else {
-        snprintf(label, sizeof(label), "%s", cls);
-    }
-    printf("  [%s] \"%.*s\"\n", label, (int)len, b);
-    match_count++;
+    Log4jHit* h = &g_hits[g_count];
+    h->s = ts;
+    h->len = (int)(te - ts);
+    h->detail[0] = '\0';
+    /* 剥掉 ${ 和 }，取 body 做前缀解析 */
+    span body = make_span(buf + 2, (int)len - 2);
+    h->cls = classify(body, h->detail, sizeof(h->detail));
+    g_count++;
 }
 
 %%{
@@ -272,38 +278,28 @@ static void on_expr(const char* b, const char* e) {
 
     main := |*
         # action 触发时 p 指向匹配的最后一个字符，te 指向末尾之后
-        lookup => { on_expr(ts, te); };
+        lookup => { collect_expr(); };
         any    => {};
     *|;
 
     write data;
 }%%
 
-static int scan_text(const char* data, size_t len) {
+/* ============================================================
+ * log4j_scan()：库入口（log4j_lookup.h 声明的契约实现）
+ * ============================================================ */
+int log4j_scan(const char* data, size_t len, Log4jHit* hits, int cap) {
     const char* p = data;
     const char* pe = data + len;
     const char* eof = pe;
     int cs;
-    match_count = 0;
+    g_hits = hits;
+    g_cap = cap;
+    g_count = 0;
     ts = data;
 
     %% write init;
     %% write exec;
 
-    return match_count;
-}
-
-int main(int argc, char** argv) {
-    if (argc < 2) {
-        fprintf(stderr, "usage: %s <payload> [<payload>...]\n", argv[0]);
-        return 2;
-    }
-    for (int a = 1; a < argc; ++a) {
-        const char* data = argv[a];
-        printf("input: %s\n", data);
-        int n = scan_text(data, strlen(data));
-        if (n == 0) printf("  (none)\n");
-        printf("\n");
-    }
-    return 0;
+    return g_count;
 }

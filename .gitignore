@@ -7,3 +7,6 @@ rulec
 # 编译器中间产物
 *.o
 *.so
+
+# ragel 旧工作区(已迁入 rules/ragel + tools/ragel;目录残留属主 root,待 root 清理)
+tools/sql_ragel/
