@@ -24,7 +24,7 @@ $(GEN):
 $(GEN)/sql_tokens.c: $(RULES_DIR)/sql_tokens.rl $(RULES_DIR)/sql_tokens.h | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
-$(GEN)/rule_sql.c: $(RULES_DIR)/rule_sql.rl $(RULES_DIR)/sql_tokens.h | $(GEN)
+$(GEN)/rule_sql.c: $(RULES_DIR)/rule_sql.rl $(RULES_DIR)/sql_tokens.h $(RULES_DIR)/rule_shared.rl | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
 $(GEN)/%.o: $(GEN)/%.c

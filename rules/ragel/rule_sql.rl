@@ -33,6 +33,9 @@
  *     %%{ machine <name>; write exec; }%%
  * 显式绑定 exec 到对应 machine，避免默认展开到最后一个 machine。
  *
+ * 公共片段（token 编号 / 运算符 / expr 递归骨架）抽到
+ * rule_shared.rl，各机器用 include 按名并入，避免三份复制。
+ *
  * 语义谓词（isIdent / numbersEqual / stringsEqual /
  * constNumbersEqual / constStringsEqual）在 C 层实现，判定与
  * RuleSQL.g4 的 @parser::members 完全一致。
@@ -155,92 +158,25 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
 
 %%{
     machine rule_expr;
-        NUMBER = 1;  STRING = 2;  TRUE = 3;   FALSE = 4;  NULL = 5;  IDENT = 6;
-    SELECT = 7;  UNION = 8;   ALL = 9;    FROM = 10;  WHERE = 11; ORDER = 12;
-    BY = 13;     LIMIT = 14;  OFFSET = 15; INSERT = 16; INTO = 17; VALUES = 18;
-    UPDATE = 19; SET = 20;    DELETE = 21; DROP = 22;  ALTER = 23; CREATE = 24;
-    EXISTS = 25; IN = 26;     LIKE = 27;  BETWEEN = 28; IS = 29;  NOT = 30;
-    AND = 31;    OR = 32;     ASC = 33;   DESC = 34;
-    EQ = 35;     NE = 36;     LE = 37;    GE = 38;    LT = 39;    GT = 40;
-    PLUS = 41;   MINUS = 42;  STAR = 43;  DIV = 44;   MOD = 45;   PIPE2 = 46;
-    LPAREN = 47; RPAREN = 48; COMMA = 49; SEMI = 50;
-
-        cmp_op = EQ | NE | LE | GE | LT | GT;
-    add_op = PLUS | MINUS | PIPE2;
-    mul_op = STAR | DIV | MOD;
-
-    # 递归全部走 fcall/fret，规则图保持无环（ragel 禁止循环图引用）：
-    #   (expr)          LPAREN 处 fcall expr_call，被调方消费 RPAREN
-    #   f(expr_list)    LPAREN 处 fcall elist_call，被调方消费 RPAREN
-    action call_expr  { fcall expr_call; }
-    action call_elist { fcall elist_call; }
-    action ret_expr   { if (top > 0) cs = stack[--top];
-                        if (top == 0) match_len = (int)(p - types) + 1 - start;
-                        goto _again; }
-
-    primary = NUMBER | STRING | TRUE | FALSE | NULL
-            | IDENT ( LPAREN @call_elist )?
-            | LPAREN @call_expr;
-    unary_expr = ( PLUS | MINUS )* primary;
-    mul_expr = unary_expr ( mul_op unary_expr )*;
-    add_expr = mul_expr ( add_op mul_expr )*;
-    comparison = add_expr ( cmp_op add_expr )?;
-    not_expr = NOT* comparison;
-    and_expr = not_expr ( AND not_expr )*;
-    or_expr = and_expr ( OR and_expr )*;
-    expr = or_expr;
-    expr_list = expr ( COMMA expr )*;
+    include rule_shared_tok  "rule_shared.rl";
+    include rule_shared_expr "rule_shared.rl";
 
     action note_expr { if (top == 0) match_len = (int)(p - types) + 1 - start; }
     main := expr @note_expr;
-    expr_call := expr RPAREN @ret_expr;
-    elist_call := expr_list? RPAREN @ret_expr;
     write data noerror nofinal noentry;
 }%%
 
 %%{
     machine rule_select;
-        NUMBER = 1;  STRING = 2;  TRUE = 3;   FALSE = 4;  NULL = 5;  IDENT = 6;
-    SELECT = 7;  UNION = 8;   ALL = 9;    FROM = 10;  WHERE = 11; ORDER = 12;
-    BY = 13;     LIMIT = 14;  OFFSET = 15; INSERT = 16; INTO = 17; VALUES = 18;
-    UPDATE = 19; SET = 20;    DELETE = 21; DROP = 22;  ALTER = 23; CREATE = 24;
-    EXISTS = 25; IN = 26;     LIKE = 27;  BETWEEN = 28; IS = 29;  NOT = 30;
-    AND = 31;    OR = 32;     ASC = 33;   DESC = 34;
-    EQ = 35;     NE = 36;     LE = 37;    GE = 38;    LT = 39;    GT = 40;
-    PLUS = 41;   MINUS = 42;  STAR = 43;  DIV = 44;   MOD = 45;   PIPE2 = 46;
-    LPAREN = 47; RPAREN = 48; COMMA = 49; SEMI = 50;
+    include rule_shared_tok  "rule_shared.rl";
+    include rule_shared_expr "rule_shared.rl";
 
-        cmp_op = EQ | NE | LE | GE | LT | GT;
-    add_op = PLUS | MINUS | PIPE2;
-    mul_op = STAR | DIV | MOD;
+    action call_sel { fcall select_call; }
+    action ret_sel  { if (top > 0) cs = stack[--top];
+                      if (top == 0) match_len = (int)(p - types) + 1 - start;
+                      goto _again; }
 
-    action call_expr  { fcall expr_call; }
-    action call_elist { fcall elist_call; }
-    action call_sel   { fcall select_call; }
-    action ret_expr   { if (top > 0) cs = stack[--top];
-                        if (top == 0) match_len = (int)(p - types) + 1 - start;
-                        goto _again; }
-    action ret_sel    { if (top > 0) cs = stack[--top];
-                        if (top == 0) match_len = (int)(p - types) + 1 - start;
-                        goto _again; }
-
-    # ---- expr 骨架（与 rule_expr 相同，递归走 fcall/fret）----
-    primary = NUMBER | STRING | TRUE | FALSE | NULL
-            | IDENT ( LPAREN @call_elist )?
-            | LPAREN @call_expr;
-    unary_expr = ( PLUS | MINUS )* primary;
-    mul_expr = unary_expr ( mul_op unary_expr )*;
-    add_expr = mul_expr ( add_op mul_expr )*;
-    comparison = add_expr ( cmp_op add_expr )?;
-    not_expr = NOT* comparison;
-    and_expr = not_expr ( AND not_expr )*;
-    or_expr = and_expr ( OR and_expr )*;
-    expr = or_expr;
-    expr_list = expr ( COMMA expr )*;
-
-    # ---- table_ref：IDENT 或 (select_stmt) 递归子查询。
-    # LPAREN 处 fcall select_call，被调方匹配完整子 SELECT 及
-    # 其 RPAREN 后返回 —— 任意深度嵌套。 ----
+    # table_ref：IDENT 或 (select_stmt) 递归子查询（任意深度嵌套）
     table_ref = IDENT | LPAREN @call_sel;
     select_stmt = SELECT ( STAR | expr_list )
                   ( FROM table_ref )?
@@ -249,22 +185,12 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
     action note_select { if (top == 0) match_len = (int)(p - types) + 1 - start; }
     main := select_stmt @note_select;
     select_call := select_stmt RPAREN @ret_sel;
-    expr_call := expr RPAREN @ret_expr;
-    elist_call := expr_list? RPAREN @ret_expr;
     write data noerror nofinal noentry;
 }%%
 
 %%{
     machine rule_const;
-        NUMBER = 1;  STRING = 2;  TRUE = 3;   FALSE = 4;  NULL = 5;  IDENT = 6;
-    SELECT = 7;  UNION = 8;   ALL = 9;    FROM = 10;  WHERE = 11; ORDER = 12;
-    BY = 13;     LIMIT = 14;  OFFSET = 15; INSERT = 16; INTO = 17; VALUES = 18;
-    UPDATE = 19; SET = 20;    DELETE = 21; DROP = 22;  ALTER = 23; CREATE = 24;
-    EXISTS = 25; IN = 26;     LIKE = 27;  BETWEEN = 28; IS = 29;  NOT = 30;
-    AND = 31;    OR = 32;     ASC = 33;   DESC = 34;
-    EQ = 35;     NE = 36;     LE = 37;    GE = 38;    LT = 39;    GT = 40;
-    PLUS = 41;   MINUS = 42;  STAR = 43;  DIV = 44;   MOD = 45;   PIPE2 = 46;
-    LPAREN = 47; RPAREN = 48; COMMA = 49; SEMI = 50;
+    include rule_shared_tok "rule_shared.rl";
 
     # 常量值括号递归：字面量或任意层括号包裹（1 / (1) / ((1))）
     action call_const { fcall const_call; }
