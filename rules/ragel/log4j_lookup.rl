@@ -6,9 +6,8 @@
  * 本库接口，不接触实现。
  *
  * 分工：
- *   Ragel 状态机（语法层）：识别 `${...}` 表达式，含有界深度嵌套
- *     （expr0..expr4，最深 4 层；Ragel 是 DFA，无法表达无界递归，
- *     故按深度展开），并给出每个完整表达式的字符区间；
+ *   Ragel 状态机（语法层）：识别 `${...}` 表达式，嵌套用 fcall/fret
+ *     递归匹配（无界深度），并给出每个完整表达式的字符区间；
  *   C 动作回调（语义层）：对捕获的表达式做前缀解析，归约出
  *     "有效前缀"（嵌套 ${...} 取其值文本拼接），与 Log4jLookup.g4
  *     谓词同一套判定：
@@ -222,12 +221,11 @@ static const char* classify(span b, char* detail, size_t dcap) {
 }
 
 /* ------------------------------------------------------------
- * Ragel 扫描器：收集 ${...} 命中到调用方数组
+ * Ragel 匹配器：逐位置识别 ${...}，命中写入调用方数组
  * ------------------------------------------------------------ */
 
-static const char* ts;         /* Ragel scanner 维护的 token 起始 */
-static const char* te;         /* Ragel scanner 维护的 token 结束 */
-static int act;                /* Ragel scanner 维护的 action 编号 */
+static const char* ts;         /* 匹配起始（collect_expr 用） */
+static const char* te;         /* 匹配结束（collect_expr 用） */
 static Log4jHit* g_hits;       /* 命中收集目标（本次扫描） */
 static int g_cap;              /* 收集上限 */
 static int g_count;            /* 已收集数 */
@@ -262,28 +260,46 @@ static void collect_expr(void) {
     # 嵌套表达式，孤立 $ 属于内容）
     chunk = ( any - ( lbrace | rbrace | colon ) );
 
-    # 嵌套表达式按深度展开（Ragel DFA 不支持无界递归）：
-    # 最深 4 层嵌套（expr4 内嵌 expr3 ... expr0）。
-    expr0 = lbrace ( chunk )* colon ( chunk | colon )* rbrace;
-    expr1 = lbrace ( chunk | ( dollar expr0 ) )* colon
-                 ( chunk | colon | ( dollar expr0 ) )* rbrace;
-    expr2 = lbrace ( chunk | ( dollar expr1 ) )* colon
-                 ( chunk | colon | ( dollar expr1 ) )* rbrace;
-    expr3 = lbrace ( chunk | ( dollar expr2 ) )* colon
-                 ( chunk | colon | ( dollar expr2 ) )* rbrace;
-    expr4 = lbrace ( chunk | ( dollar expr3 ) )* colon
-                 ( chunk | colon | ( dollar expr3 ) )* rbrace;
+    # 嵌套 ${...} 用 fcall/fret 递归（替代 expr0..expr4 的有限展开）：
+    #   消费 ${ 后 fcall lookup_call，被调方匹配 body + 右括号后 fret。
+    action call_lookup { fcall lookup_call; }
+    action ret_lookup  { fret; }
+    action note_hit    { len = (int)(p - ts) + 1; }
 
-    lookup = dollar expr4;
+    nested = dollar lbrace @call_lookup;
+    prefix = ( chunk | nested )*;
+    value  = ( chunk | colon | nested )*;
+    body   = prefix colon value;
 
-    main := |*
-        # action 触发时 p 指向匹配的最后一个字符，te 指向末尾之后
-        lookup => { collect_expr(); };
-        any    => {};
-    *|;
+    lookup = dollar lbrace body rbrace;
 
-    write data;
+    main := lookup @note_hit;
+
+    # 递归入口：嵌套 ${...} 的 body + 闭合右括号
+    lookup_call := body rbrace @ret_lookup;
+
+    write data noerror nofinal noentry;
 }%%
+
+/* ------------------------------------------------------------
+ * 逐位置匹配一个完整 ${...}（普通模式，替代 scanner 自动扫描）
+ * ------------------------------------------------------------ */
+static int match_one(const char* data, const char* pe, int* hit_len) {
+    const char* p = data;
+    int cs = log4j_start;
+    int stack[256];   /* fcall/fret 嵌套栈 */
+    int top = 0;
+    int len = 0;
+    ts = data;
+
+    %%{
+        machine log4j;
+        write exec;
+    }%%
+
+    *hit_len = len;
+    return len > 0;
+}
 
 /* ============================================================
  * log4j_scan()：库入口（log4j_lookup.h 声明的契约实现）
@@ -291,15 +307,24 @@ static void collect_expr(void) {
 int log4j_scan(const char* data, size_t len, Log4jHit* hits, int cap) {
     const char* p = data;
     const char* pe = data + len;
-    const char* eof = pe;
-    int cs;
     g_hits = hits;
     g_cap = cap;
     g_count = 0;
-    ts = data;
 
-    %% write init;
-    %% write exec;
-
+    /* 只有 ${ 开头才尝试匹配，其余位置跳过 */
+    while (p < pe) {
+        if (p + 1 >= pe || p[0] != '$' || p[1] != '{') {
+            p++;
+            continue;
+        }
+        int hit_len = 0;
+        if (match_one(p, pe, &hit_len)) {
+            te = p + hit_len;
+            collect_expr();
+            p += hit_len;
+        } else {
+            p++;
+        }
+    }
     return g_count;
 }
