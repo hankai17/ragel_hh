@@ -45,26 +45,55 @@ static int x_ci_prefix(const char* s, int len, const char* prefix) {
     return 1;
 }
 
-/* IDENT 等于指定标签名（大小写不敏感） */
-int xss_is_tag(const XssTok* t, const char* expected) {
-    return t && t->type == X_IDENT && x_ci_eq(t->s, t->len, expected);
+/* 移除 HTML 注释，返回干净文本长度 */
+static int x_strip_comment(const char* s, int len, char* out, int cap) {
+    int o = 0;
+    for (int i = 0; i < len; ) {
+        if (i + 3 < len && s[i] == '<' && s[i+1] == '!' &&
+            s[i+2] == '-' && s[i+3] == '-') {
+            int j = i + 4;
+            while (j + 2 < len &&
+                   !(s[j] == '-' && s[j+1] == '-' && s[j+2] == '>'))
+                j++;
+            i = (j + 2 < len) ? j + 3 : len;
+        } else if (o + 1 < cap) {
+            out[o++] = s[i++];
+        } else {
+            break;
+        }
+    }
+    out[o] = '\0';
+    return o;
 }
 
-/* IDENT 是危险标签 */
+/* IDENT 等于指定标签名（大小写不敏感，忽略注释） */
+int xss_is_tag(const XssTok* t, const char* expected) {
+    if (!t || t->type != X_IDENT) return 0;
+    char buf[64];
+    int n = x_strip_comment(t->s, t->len, buf, sizeof(buf));
+    return x_ci_eq(buf, n, expected);
+}
+
+/* IDENT 是危险标签（忽略注释） */
 int xss_is_dangerous(const XssTok* t) {
     static const char* set[] = {"iframe", "object", "embed", "frame",
                                 "svg", "math", "meta"};
     if (!t || t->type != X_IDENT) return 0;
+    char buf[64];
+    int n = x_strip_comment(t->s, t->len, buf, sizeof(buf));
     for (size_t i = 0; i < sizeof(set) / sizeof(set[0]); ++i)
-        if (x_ci_eq(t->s, t->len, set[i])) return 1;
+        if (x_ci_eq(buf, n, set[i])) return 1;
     return 0;
 }
 
-/* IDENT 是事件处理器属性（on 开头且长度 > 2） */
+/* IDENT 是事件处理器属性（on 开头且长度 > 2，忽略注释） */
 int xss_is_event(const XssTok* t) {
-    if (!t || t->type != X_IDENT || t->len <= 2) return 0;
-    return tolower((unsigned char)t->s[0]) == 'o' &&
-           tolower((unsigned char)t->s[1]) == 'n';
+    if (!t || t->type != X_IDENT) return 0;
+    char buf[64];
+    int n = x_strip_comment(t->s, t->len, buf, sizeof(buf));
+    if (n <= 2) return 0;
+    return tolower((unsigned char)buf[0]) == 'o' &&
+           tolower((unsigned char)buf[1]) == 'n';
 }
 
 /* STRING 是 javascript: / vbscript: URI（剥引号，大小写不敏感） */
@@ -76,7 +105,9 @@ int xss_is_js_uri(const XssTok* t) {
         s++;
         len -= 2;
     }
-    return x_ci_prefix(s, len, "javascript:") || x_ci_prefix(s, len, "vbscript:");
+    char buf[128];
+    int n = x_strip_comment(s, len, buf, sizeof(buf));
+    return x_ci_prefix(buf, n, "javascript:") || x_ci_prefix(buf, n, "vbscript:");
 }
 
 /* ENTITY 是 < 的编码（&lt; / &#60; / &#x3c;） */

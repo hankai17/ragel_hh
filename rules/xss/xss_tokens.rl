@@ -43,12 +43,16 @@ const char* xss_tok_name(XssTokType t) {
     gt = '>';
     slash = '/';
     eq = '=';
-    ident = [a-zA-Z_] ( [a-zA-Z0-9_] | '-' )*;
+    # HTML 注释：整体跳过，且可作为标识符内部成分被吞掉，
+    # 从而还原注释拆标签名/属性名的绕过（<scr<!-- -->ipt> -> script）
+    comment = '<!--' any* :>> '-->';
+    ident = [a-zA-Z_] ( [a-zA-Z0-9_] | '-' | comment )*;
     dstring = '"' ( ( any - ( '"' | '\\' ) ) | ( '\\' any ) )* '"';
     sstring = '\'' ( ( any - ( '\'' | '\\' ) ) | ( '\\' any ) )* '\'';
     entity = '&' ( '#' [0-9]+ | '#x' [0-9a-fA-F]+ | [a-zA-Z]+ ) ';';
 
     main := |*
+        comment => {};
         lt      => { x_emit(X_LT, ts, te - ts); };
         gt      => { x_emit(X_GT, ts, te - ts); };
         slash   => { x_emit(X_SLASH, ts, te - ts); };

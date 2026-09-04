@@ -52,6 +52,12 @@ check_hit '<script src=x>'                     script_tag
 check_hit '<SCRIPT>alert(1)</SCRIPT>'          script_tag
 check_miss '<scriipt>'                         script_tag
 
+# 注释绕过（<!-- --> 拆标签名/属性名/URI）
+check_hit '<scr<!-- -->ipt>alert(1)</scr<!-- -->ipt>'    script_tag
+check_hit '<s<!--c-->cript>alert(1)</s<!--c-->cript>'    script_tag
+check_hit '<img oner<!-- -->ror=alert(1)>'               event_handler
+check_hit '<a href="java<!-- -->script:alert(1)">x</a>'  js_uri
+
 # 危险标签
 check_hit '<iframe src=x>'                     dangerous_tag
 check_hit '<object data=x>'                    dangerous_tag
