@@ -12,8 +12,8 @@
  *        string_tautology）在此复核：rl 只保证结构，本层用
  *        sql_match_const 求两侧 constant_value 区间并判等
  *
- * 调用方只需 include sql_tokens.h / rule_sql.h / sqli_rules.h 并链接
- * libragel_sql（sql_tokens + rule_sql + sqli_rules 打包），无需 ragel。
+ * 调用方只需 include sql_tokens.h / sql_syntax.h / sqli_rules.h 并链接
+ * libragel_sql（sql_tokens + sql_syntax + sqli_rules 打包），无需 ragel。
  *
  * 用法：./sqli_scan '<payload>' [<payload>...]
  * ============================================================ */
@@ -22,7 +22,7 @@
 #include <string.h>
 
 #include "sql_tokens.h"
-#include "rule_sql.h"
+#include "sql_syntax.h"
 #include "sqli_rules.h"
 
 #define MAX_TOK 1024

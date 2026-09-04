@@ -1,5 +1,5 @@
 /* ============================================================
- * rule_sql.rl — RuleSQL.g4 的 Ragel 移植（语法层 / token 级状态机）
+ * sql_syntax.rl — RuleSQL.g4 的 Ragel 移植（语法层 / token 级状态机）
  * ------------------------------------------------------------
  * 对应 rules/_shared/RuleSQL.g4 的匹配骨架：
  *   expr / or_expr / and_expr / not_expr / comparison / cmp_op /
@@ -34,13 +34,13 @@
  * 显式绑定 exec 到对应 machine，避免默认展开到最后一个 machine。
  *
  * 公共片段（token 编号 / 运算符 / expr 递归骨架）抽到
- * rule_shared.rl，各机器用 include 按名并入，避免三份复制。
+ * sql_shared.rl，各机器用 include 按名并入，避免三份复制。
  *
  * 语义谓词（isIdent / numbersEqual / stringsEqual /
  * constNumbersEqual / constStringsEqual）在 C 层实现，判定与
  * RuleSQL.g4 的 @parser::members 完全一致。
  *
- * 生成：ragel -C -o rule_sql.c rule_sql.rl
+ * 生成：ragel -C -o sql_syntax.c sql_syntax.rl
  * ============================================================ */
 
 #include <ctype.h>
@@ -157,9 +157,9 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
  * ------------------------------------------------------------ */
 
 %%{
-    machine rule_expr;
-    include rule_shared_tok  "rule_shared.rl";
-    include rule_shared_expr "rule_shared.rl";
+    machine sql_expr;
+    include sql_shared_tok  "sql_shared.rl";
+    include sql_shared_expr "sql_shared.rl";
 
     action ret_expr   { if (top > 0) cs = stack[--top];
                         if (top == 0) match_len = (int)(p - types) + 1 - start;
@@ -173,9 +173,9 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
 }%%
 
 %%{
-    machine rule_select;
-    include rule_shared_tok  "rule_shared.rl";
-    include rule_shared_expr "rule_shared.rl";
+    machine sql_select;
+    include sql_shared_tok  "sql_shared.rl";
+    include sql_shared_expr "sql_shared.rl";
 
     action ret_expr   { if (top > 0) cs = stack[--top];
                         if (top == 0) match_len = (int)(p - types) + 1 - start;
@@ -201,8 +201,8 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
 }%%
 
 %%{
-    machine rule_const;
-    include rule_shared_tok "rule_shared.rl";
+    machine sql_const;
+    include sql_shared_tok "sql_shared.rl";
 
     # 常量值括号递归：字面量或任意层括号包裹（1 / (1) / ((1))）
     action call_const { fcall const_call; }
@@ -221,13 +221,13 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
 static int run_expr(const int* types, int n, int start, int* len) {
     const int* p = types + start;
     const int* pe = types + n;
-    int cs = rule_expr_start;
+    int cs = sql_expr_start;
     int match_len = 0;
     int stack[CFG_STACKSZ];
     int top = 0;
 
     %%{
-        machine rule_expr;
+        machine sql_expr;
         write exec;
     }%%
 
@@ -240,13 +240,13 @@ static int run_expr(const int* types, int n, int start, int* len) {
 static int run_select(const int* types, int n, int start, int* len) {
     const int* p = types + start;
     const int* pe = types + n;
-    int cs = rule_select_start;
+    int cs = sql_select_start;
     int match_len = 0;
     int stack[CFG_STACKSZ];
     int top = 0;
 
     %%{
-        machine rule_select;
+        machine sql_select;
         write exec;
     }%%
 
@@ -259,13 +259,13 @@ static int run_select(const int* types, int n, int start, int* len) {
 static int run_const(const int* types, int n, int start, int* len) {
     const int* p = types + start;
     const int* pe = types + n;
-    int cs = rule_const_start;
+    int cs = sql_const_start;
     int match_len = 0;
     int stack[CFG_STACKSZ];
     int top = 0;
 
     %%{
-        machine rule_const;
+        machine sql_const;
         write exec;
     }%%
 

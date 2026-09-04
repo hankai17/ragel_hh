@@ -5,7 +5,7 @@
  *
  * 对每条输入：
  *   1. sql_tokens 词法扫出 token 流
- *   2. rule_sql 的三个骨架入口（expr / select_stmt / constant_value）
+ *   2. sql_syntax 的三个骨架入口（expr / select_stmt / constant_value）
  *      在 token 流上逐位置尝试，打印各自的最长命中
  *
  * select_stmt 命中区间恰好覆盖全部 token 时标 (whole)，
@@ -16,7 +16,7 @@
 #include <string.h>
 
 #include "sql_tokens.h"
-#include "rule_sql.h"
+#include "sql_syntax.h"
 
 #define MAX_TOK 1024
 

@@ -10,7 +10,7 @@
  * 否则返回 0。
  *
  * 谓词分工：
- *   - always_true / string_tautology 需在 C 层用 rule_sql.h 的
+ *   - always_true / string_tautology 需在 C 层用 sql_syntax.h 的
  *     sql_match_const + sql_const_*_equal 做常量相等复核
  *     （rl 只保证 constant_value EQ constant_value 结构）；
  *   - 其余规则的 isIdent（sleep/load_file/...）已在 rl 内判定。

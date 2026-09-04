@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sql_tokens + rule_sql 骨架测试
+# sql_tokens + sql_syntax 骨架测试
 # 三类断言：
 #   1. 词法：tokens(n): 行内容
 #   2. 骨架：从位置 0 能否命中 expr / select_stmt / constant_value

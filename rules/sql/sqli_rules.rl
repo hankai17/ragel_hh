@@ -4,7 +4,7 @@
  * 每条 <name>_pat 攻击规则对应一个独立机器入口（<name> 同名），
  * 驱动逐位置逐规则匹配并上报命中区间。
  *
- * 复用 rule_shared.rl 的 token 编号 / 运算符 / expr 规则链；
+ * 复用 sql_shared.rl 的 token 编号 / 运算符 / expr 规则链；
  * 递归入口与返回动作在本文件定义（act_ret 只弹栈不写长度，
  * 命中长度由 %note 在规则完成时记录）。
  *
@@ -15,16 +15,16 @@
 
 #include "sql_tokens.h"
 
-/* 语义谓词（rule_sql.rl 实现，对齐 RuleSQL.g4 @parser::members） */
+/* 语义谓词（sql_syntax.rl 实现，对齐 RuleSQL.g4 @parser::members） */
 extern int sql_is_ident(const Token* t, const char* expected);
 
-/* fcall/fret 运行期栈大小（同 rule_sql.rl 的 CFG_STACKSZ） */
+/* fcall/fret 运行期栈大小（同 sql_syntax.rl 的 CFG_STACKSZ） */
 #define CFG_STACKSZ 1024
 
 %%{
     machine sqli;
-    include rule_shared_tok  "rule_shared.rl";
-    include rule_shared_expr "rule_shared.rl";
+    include sql_shared_tok  "sql_shared.rl";
+    include sql_shared_expr "sql_shared.rl";
 
     # 递归返回：只弹栈不写长度（内部递归返回并非规则完成）
     action act_ret    { if (top > 0) cs = stack[--top]; goto _again; }

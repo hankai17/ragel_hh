@@ -1,12 +1,12 @@
 /* ============================================================
- * rule_shared.rl — rule_*.rl 公共片段
+ * sql_shared.rl — rule_*.rl 公共片段
  * ------------------------------------------------------------
  * 两个命名段，供各规则文件按名 include：
- *   include rule_shared_tok  "rule_shared.rl";   token 编号 + 运算符
- *   include rule_shared_expr "rule_shared.rl";   expr 规则链
+ *   include sql_shared_tok  "sql_shared.rl";   token 编号 + 运算符
+ *   include sql_shared_expr "sql_shared.rl";   expr 规则链
  *                                                （primary~expr_list + fcall 动作）
  *
- * rule_shared_expr 不含递归入口（:=）与返回动作：rule_sql 与 sqli
+ * sql_shared_expr 不含递归入口（:=）与返回动作：sql_syntax 与 sqli
  * 的返回语义不同（前者在最外层返回时写 match_len，后者不写），
  * 故由使用方各自定义。
  *
@@ -15,7 +15,7 @@
  * ============================================================ */
 
 %%{
-    machine rule_shared_tok;
+    machine sql_shared_tok;
     NUMBER = 1;  STRING = 2;  TRUE = 3;   FALSE = 4;  NULL = 5;  IDENT = 6;
     SELECT = 7;  UNION = 8;   ALL = 9;    FROM = 10;  WHERE = 11; ORDER = 12;
     BY = 13;     LIMIT = 14;  OFFSET = 15; INSERT = 16; INTO = 17; VALUES = 18;
@@ -32,8 +32,8 @@
 }%%
 
 %%{
-    machine rule_shared_expr;
-    # expr 递归骨架（token 级，常量来自 rule_shared_tok）：
+    machine sql_shared_expr;
+    # expr 递归骨架（token 级，常量来自 sql_shared_tok）：
     #   括号 / f(...) 递归走 fcall 到 expr_call / elist_call，
     #   入口与返回动作由使用方定义（见本文件头）。
     action call_expr  { fcall expr_call; }
