@@ -222,6 +222,25 @@ def slugify(s):
     return s or 'item'
 
 
+def needs_semantic(category, decoded):
+    """判断是否需要语义分析（正则单次匹配处理不了，必须 HTML 结构/上下文）。
+
+    需要语义的 3 类：
+    1. 注释拆散（HTML <!-- --> / JS /* */ 拆散标签名/URI/表达式）
+    2. 属性名拆散（on 事件名后跟浏览器忽略的特殊字符，如 onload!@#=）
+    3. 条件注释 / 多上下文 polyglot（含 --> 提前闭合）
+    其余（直接攻击、编码混淆、前导闭合、空白拆散）正则/解码即可防护。
+    """
+    if category == 'server':
+        return False
+    s = decoded
+    if '<!--' in s or '/*' in s:
+        return True
+    if re.search(r'\bon\w*[^\w\s="\'<>/]+', s, re.I):
+        return True
+    return False
+
+
 # --------------------------------------------------------------------------
 # 解析 Markdown
 # --------------------------------------------------------------------------
@@ -358,6 +377,8 @@ def main():
     ap.add_argument('--md', help='本地 Markdown 文件路径')
     ap.add_argument('--fetch', action='store_true', help='从 GitHub 拉取最新 Markdown')
     ap.add_argument('--out', default='owasp_xss.yaml', help='输出 YAML 路径')
+    ap.add_argument('--semantic-only', action='store_true',
+                    help='只输出需要语义分析的条目（跳过正则/解码可防护的）')
     args = ap.parse_args()
 
     if args.md:
@@ -405,6 +426,7 @@ def main():
             'raw': raw,
             'decoded': decoded,
             'rules': rules,
+            'semantic': needs_semantic(category, decoded),
             'source': src,
         }
         if t['section']:
@@ -412,6 +434,9 @@ def main():
         if t['lang']:
             entry['lang'] = t['lang']
         tests.append(entry)
+
+    if args.semantic_only:
+        tests = [t for t in tests if t['semantic']]
 
     doc = {
         'meta': {

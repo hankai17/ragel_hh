@@ -1,0 +1,334 @@
+meta:
+  version: 1
+  title: OWASP XSS Filter Evasion Cheat Sheet 语料库
+  source:
+    name: OWASP XSS Filter Evasion Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/XSS_Filter_Evasion_Cheat_Sheet.html
+    raw_md: https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/XSS_Filter_Evasion_Cheat_Sheet.md
+  generated_by: generate.py
+  generated_at: '2026-09-06T16:09:23+00:00'
+  count: 8
+categories:
+  tag: 危险标签（本身危险，不需属性）
+  event: 事件处理器属性 on*
+  uri: 危险 URI（javascript:/vbscript:/data:）
+  attr: 危险 URI 属性（background/dynsrc/lowsrc/...）
+  css: CSS 注入（expression/@import/url()/-moz-binding）
+  enc: 编码混淆（实体/URL/空白/字符转义，解码后归入上述类）
+  server: 服务器端注入（SSI/PHP，引擎范围外，参考）
+rules:
+  script_tag:
+    status: impl
+    desc: <script>
+  dangerous_tag:
+    status: impl
+    desc: <iframe>/<object>/<embed>/<frame>/<svg>/<math>/<meta>
+  event_handler:
+    status: impl
+    desc: on* 事件属性
+  js_uri:
+    status: impl
+    desc: 'javascript:/vbscript:'
+  entity_lt:
+    status: impl
+    desc: '&#60;/&#x3c;/&lt;'
+  TODO_dangerous_tag:
+    status: todo
+    desc: 扩充 dangerous_tag：link/base/style
+  TODO_js_uri:
+    status: todo
+    desc: '扩充 js_uri：data:'
+  TODO_css:
+    status: todo
+    desc: 新增 CSS 规则
+  TODO_attr_uri:
+    status: todo
+    desc: 危险属性 URI 检测
+  TODO_protocol:
+    status: todo
+    desc: 协议解析绕过 //host
+  TODO_js:
+    status: todo
+    desc: JS 上下文注入/混淆（alert 函数名绕过等）
+  TODO_tokenizer:
+    status: todo
+    desc: 词法改进：前导闭合/注释/XML/反引号干扰
+  TODO_unknown:
+    status: todo
+    desc: 未归类
+tests:
+- id: xss-locator-polyglot
+  category: enc
+  raw: 'javascript:/*--></title></style></textarea></script></xmp>
+
+    <svg/onload=''+/"`/+/onmouseover=1/+/[*/[]/+alert(42);//''>'
+  decoded: 'javascript:/*--></title></style></textarea></script></xmp>
+
+    <svg/onload=''+/"`/+/onmouseover=1/+/[*/[]/+alert(42);//''>'
+  rules:
+  - dangerous_tag
+  - event_handler
+  - js_uri
+  semantic: true
+  source: XSS Locator (Polyglot)
+  section: Tests
+  lang: js
+- id: example-4-non-alpha-non-digit-xss-2
+  category: tag
+  raw: <BODY onload!#$%&()*~+-_.,:;?@[/|\]^`=alert("XSS")>
+  decoded: <BODY onload!#$%&()*~+-_.,:;?@[/|\]^`=alert("XSS")>
+  rules:
+  - TODO_dangerous_tag
+  semantic: true
+  source: 'Example 4: Non-alpha-non-digit XSS'
+  section: Tests
+  lang: html
+- id: style-attribute-that-breaks-up-an-expression
+  category: tag
+  raw: <IMG STYLE="xss:expr/*XSS*/ession(alert('XSS'))">
+  decoded: <IMG STYLE="xss:expr/*XSS*/ession(alert('XSS'))">
+  rules:
+  - TODO_dangerous_tag
+  semantic: true
+  source: STYLE Attribute that Breaks Up an Expression
+  section: Tests
+  lang: html
+- id: img-style-with-expressions
+  category: css
+  raw: 'exp/*<A STYLE=''no\xss:noxss("*//*");
+
+    xss:ex/*XSS*//*/*/pression(alert("XSS"))''>'
+  decoded: 'exp/*<A STYLE=''no\xss:noxss("*//*");
+
+    xss:ex/*XSS*//*/*/pression(alert("XSS"))''>'
+  rules:
+  - TODO_css
+  semantic: true
+  source: IMG STYLE with Expressions
+  section: Tests
+  lang: html
+- id: downlevel-hidden-block
+  category: tag
+  raw: '<!--[if gte IE 4]>
+
+    <SCRIPT>alert(''XSS'');</SCRIPT>
+
+    <![endif]-->'
+  decoded: '<!--[if gte IE 4]>
+
+    <SCRIPT>alert(''XSS'');</SCRIPT>
+
+    <![endif]-->'
+  rules:
+  - TODO_tokenizer
+  semantic: true
+  source: Downlevel-Hidden Block
+  section: Tests
+  lang: js
+- id: xml-data-island-with-cdata-obfuscation
+  category: tag
+  raw: '<XML ID="xss"><I><B><IMG SRC="javas<!-- -->cript:alert(''XSS'')"></B></I></XML>
+
+    <SPAN DATASRC="#xss" DATAFLD="B" DATAFORMATAS="HTML"></SPAN>'
+  decoded: '<XML ID="xss"><I><B><IMG SRC="javas<!-- -->cript:alert(''XSS'')"></B></I></XML>
+
+    <SPAN DATASRC="#xss" DATAFLD="B" DATAFORMATAS="HTML"></SPAN>'
+  rules:
+  - TODO_dangerous_tag
+  semantic: true
+  source: XML Data Island with CDATA Obfuscation
+  section: Tests
+  lang: html
+- id: waf-bypass-strings-for-xss-19
+  category: event
+  raw: </script><img/*%00/src="worksinchrome&colon;prompt(1)"/%00*/onerror='eval(src)'>
+  decoded: "</script><img/*\0/src=\"worksinchrome:prompt(1)\"/\0*/onerror='eval(src)'>"
+  rules:
+  - TODO_tokenizer
+  semantic: true
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+- id: waf-bypass-strings-for-xss-20
+  category: css
+  raw: <style>//*{x:expression(alert(/xss/))}//<style></style>
+  decoded: <style>//*{x:expression(alert(/xss/))}//<style></style>
+  rules:
+  - TODO_css
+  - TODO_dangerous_tag
+  semantic: true
+  source: WAF ByPass Strings for XSS
+  section: Methods to Bypass WAF – Cross-Site Scripting
+event_handlers:
+- onAbort
+- onActivate
+- onAfterPrint
+- onAfterUpdate
+- onBeforeActivate
+- onBeforeCopy
+- onBeforeCut
+- onBeforeDeactivate
+- onBeforeEditFocus
+- onBeforePaste
+- onBeforePrint
+- onBeforeUnload
+- onBeforeUpdate
+- onBegin
+- onBlur
+- onBounce
+- onCellChange
+- onChange
+- onClick
+- onContextMenu
+- onControlSelect
+- onCopy
+- onCut
+- onDataAvailable
+- onDataSetChanged
+- onDataSetComplete
+- onDblClick
+- onDeactivate
+- onDrag
+- onDragEnd
+- onDragLeave
+- onDragEnter
+- onDragOver
+- onDragDrop
+- onDragStart
+- onDrop
+- onEnd
+- onError
+- onErrorUpdate
+- onFilterChange
+- onFinish
+- onFocus
+- onFocusIn
+- onFocusOut
+- onHashChange
+- onHelp
+- onInput
+- onKeyDown
+- onKeyPress
+- onKeyUp
+- onLayoutComplete
+- onLoad
+- onLoseCapture
+- onMediaComplete
+- onMediaError
+- onMessage
+- onMouseDown
+- onMouseEnter
+- onMouseLeave
+- onMouseMove
+- onMouseOut
+- onMouseOver
+- onMouseUp
+- onMouseWheel
+- onMove
+- onMoveEnd
+- onMoveStart
+- onOffline
+- onOnline
+- onOutOfSync
+- onPaste
+- onPause
+- onPopState
+- onPropertyChange
+- onReadyStateChange
+- onRedo
+- onRepeat
+- onReset
+- onResize
+- onResizeEnd
+- onResizeStart
+- onResume
+- onReverse
+- onRowsEnter
+- onRowExit
+- onRowDelete
+- onRowInserted
+- onScroll
+- onSeek
+- onSelect
+- onSelectionChange
+- onSelectStart
+- onStart
+- onStop
+- onStorage
+- onSyncRestored
+- onSubmit
+- onTimeError
+- onTrackChange
+- onUndo
+- onUnload
+- onURLFlip
+char_escapes_lt:
+- <
+- '%3C'
+- '&lt'
+- '&lt;'
+- '&LT'
+- '&LT;'
+- '&#60'
+- '&#060'
+- '&#0060'
+- '&#00060'
+- '&#000060'
+- '&#0000060'
+- '&#60;'
+- '&#060;'
+- '&#0060;'
+- '&#00060;'
+- '&#000060;'
+- '&#0000060;'
+- '&#x3c'
+- '&#x03c'
+- '&#x003c'
+- '&#x0003c'
+- '&#x00003c'
+- '&#x000003c'
+- '&#x3c;'
+- '&#x03c;'
+- '&#x003c;'
+- '&#x0003c;'
+- '&#x00003c;'
+- '&#x000003c;'
+- '&#X3c'
+- '&#X03c'
+- '&#X003c'
+- '&#X0003c'
+- '&#X00003c'
+- '&#X000003c'
+- '&#X3c;'
+- '&#X03c;'
+- '&#X003c;'
+- '&#X0003c;'
+- '&#X00003c;'
+- '&#X000003c;'
+- '&#x3C'
+- '&#x03C'
+- '&#x003C'
+- '&#x0003C'
+- '&#x00003C'
+- '&#x000003C'
+- '&#x3C;'
+- '&#x03C;'
+- '&#x003C;'
+- '&#x0003C;'
+- '&#x00003C;'
+- '&#x000003C;'
+- '&#X3C'
+- '&#X03C'
+- '&#X003C'
+- '&#X0003C'
+- '&#X00003C'
+- '&#X000003C'
+- '&#X3C;'
+- '&#X03C;'
+- '&#X003C;'
+- '&#X0003C;'
+- '&#X00003C;'
+- '&#X000003C;'
+- \x3c
+- \x3C
+- \u003c
+- \u003C

