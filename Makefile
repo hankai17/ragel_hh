@@ -1,13 +1,15 @@
 # 不依赖 cmake 的等价格建：
-#   rules/{sql,log4j,js}/*.rl --ragel--> gen/*.c --cc--> libragel_sql.a --link--> 驱动
-#   驱动：sql_scan（主目录）+ examples/{sqli,log4j,js}_scan
-#   make test 跑四套断言（sql 骨架 / sqli / log4j / js）
+#   rules/{sql,log4j,js,html5,xss}/*.rl --ragel--> gen/*.c --cc--> libragel_sql.a --link--> 驱动
+#   驱动：sql_scan（主目录）+ examples/{sqli,log4j,js,xss}_scan
+#   make test 跑五套断言（sql 骨架 / sqli / log4j / js / xss）
 # 产物统一放 build/ragel/，与 CMake 路径一致。
 
 ROOT := $(abspath .)
 SQL_DIR   := $(ROOT)/rules/sql
 LOG4J_DIR := $(ROOT)/rules/log4j
 JS_DIR    := $(ROOT)/rules/js
+HTML5_DIR := $(ROOT)/rules/html5
+XSS_DIR   := $(ROOT)/rules/xss
 GEN := $(ROOT)/build/ragel/gen
 BIN := $(ROOT)/build/ragel
 
@@ -16,14 +18,15 @@ CC    ?= gcc
 AR    ?= ar
 CFLAGS ?= -O2 -Wall -Wextra
 
-INC := -I$(SQL_DIR) -I$(LOG4J_DIR) -I$(JS_DIR)
+INC := -I$(SQL_DIR) -I$(LOG4J_DIR) -I$(JS_DIR) -I$(HTML5_DIR) -I$(XSS_DIR)
 
 OBJS := $(GEN)/sql_tokens.o $(GEN)/sql_syntax.o $(GEN)/sqli_rules.o \
         $(GEN)/log4j_lookup.o \
-        $(GEN)/js_tokens.o $(GEN)/js_syntax.o
+        $(GEN)/js_tokens.o $(GEN)/js_syntax.o \
+        $(GEN)/html5_tokens.o $(GEN)/xss_rules.o
 LIB  := $(BIN)/libragel_sql.a
 
-all: $(BIN)/sql_scan $(BIN)/sqli_scan $(BIN)/log4j_scan $(BIN)/js_scan
+all: $(BIN)/sql_scan $(BIN)/sqli_scan $(BIN)/log4j_scan $(BIN)/js_scan $(BIN)/xss_scan
 
 $(GEN):
 	mkdir -p $(GEN) $(BIN)
@@ -46,6 +49,12 @@ $(GEN)/js_tokens.c: $(JS_DIR)/js_tokens.rl $(JS_DIR)/js_tokens.h | $(GEN)
 $(GEN)/js_syntax.c: $(JS_DIR)/js_syntax.rl $(JS_DIR)/js_tokens.h $(JS_DIR)/js_shared.rl | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
+$(GEN)/html5_tokens.c: $(HTML5_DIR)/html5_tokens.rl $(HTML5_DIR)/html5_tokens.h | $(GEN)
+	$(RAGEL) -C -o $@ $<
+
+$(GEN)/xss_rules.c: $(XSS_DIR)/xss_rules.rl $(XSS_DIR)/xss_rules.h $(HTML5_DIR)/html5_shared.rl | $(GEN)
+	$(RAGEL) -C -I$(HTML5_DIR) -o $@ $<
+
 $(GEN)/%.o: $(GEN)/%.c
 	$(CC) $(CFLAGS) $(INC) -c -o $@ $<
 
@@ -64,11 +73,15 @@ $(BIN)/log4j_scan: examples/log4j_scan.c $(LIB)
 $(BIN)/js_scan: examples/js_scan.c $(LIB)
 	$(CC) $(CFLAGS) -I$(JS_DIR) -o $@ examples/js_scan.c $(LIB)
 
+$(BIN)/xss_scan: examples/xss_scan.c $(LIB)
+	$(CC) $(CFLAGS) -I$(HTML5_DIR) -I$(XSS_DIR) -o $@ examples/xss_scan.c $(LIB)
+
 test: all
 	./test.sh $(BIN)/sql_scan
 	./examples/test_sqli.sh $(BIN)/sqli_scan
 	./examples/test_log4j.sh $(BIN)/log4j_scan
 	./examples/test_js.sh $(BIN)/js_scan
+	./examples/test_xss.sh $(BIN)/xss_scan
 
 clean:
 	rm -rf $(GEN) $(BIN)
