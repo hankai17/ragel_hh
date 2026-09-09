@@ -11,6 +11,7 @@
  *   black_url         ATTR_NAME(URI) + ATTR_VALUE(黑 URL)      -> 危险
  *   style_expr        ATTR_NAME(style/filter) + 值含 expression -> 危险
  *   dangerous_comment TAG_COMMENT 含反引号 / [if / xml / import -> 危险
+ *   dangerous_js      ATTR_VALUE 值含危险 JS 调用（语义分析）     -> 危险
  *
  * 相对 libinjection 的两处"精细化"（不激进，避免误报）：
  *   1. DOCTYPE 不再直接判危险（正常页面都有 <!DOCTYPE html>）；
@@ -29,6 +30,7 @@
 #include <string.h>
 
 #include "html5_tokens.h"
+#include "js_danger.h"
 
 /* ------------------------------------------------------------
  * 语义层：黑名单数据 + 匹配谓词（C 层，供 Ragel 动作调用）
@@ -198,6 +200,10 @@ static int is_dangerous_comment(const char* s, int len) {
         if (!is_dangerous_comment(tk[(int)(p - types)].s, tk[(int)(p - types)].len))
             { cs = 0; goto _out; }
     }
+    action is_djs {
+        if (!js_is_dangerous(tk[(int)(p - types)].s, tk[(int)(p - types)].len))
+            { cs = 0; goto _out; }
+    }
 
     # 规则（每条独立入口，any* 吞掉剩余 token）
     black_tag        := TAG_NAME_OPEN $is_btag %note any*;
@@ -205,6 +211,7 @@ static int is_dangerous_comment(const char* s, int len) {
     black_url        := ATTR_NAME $is_url_attr_p ATTR_VALUE $is_burl %note any*;
     style_expr       := ATTR_NAME $is_style_attr_p ATTR_VALUE $is_style_val %note any*;
     dangerous_comment := TAG_COMMENT $is_dcomment %note any*;
+    dangerous_js     := ATTR_VALUE $is_djs %note any*;
 
     write data noerror nofinal;
 }%%
@@ -244,3 +251,4 @@ HTML5_XSS_ENTRY(black_attr)
 HTML5_XSS_ENTRY(black_url)
 HTML5_XSS_ENTRY(style_expr)
 HTML5_XSS_ENTRY(dangerous_comment)
+HTML5_XSS_ENTRY(dangerous_js)

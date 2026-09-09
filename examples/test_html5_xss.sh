@@ -61,9 +61,17 @@ check '<div style="background:url(javascript:alert(1))">' style_expr
 check '<!--[if gte IE 4]><script>alert(1)</script><![endif]-->' dangerous_comment
 check '<!--import x-->'                               dangerous_comment
 
+# ---- dangerous_js：属性值含危险 JS 调用（语义分析）----
+check '<img onerror="alert(1)">'                     dangerous_js
+check '<img onerror="String.fromCharCode(88,83,83)">' dangerous_js
+check '<img onerror="document.cookie">'              dangerous_js
+check '<img onerror="a[&quot;eval&quot;](&quot;alert(1)&quot;)">' dangerous_js
+
 # ---- 负样本：不应命中（精细化，不误报）----
 check '<div>hello</div>'                             NONE
 check '<p class="x">text</p>'                        NONE
+check '<a title="hello">'                            NONE
+check '<div data-x="foo(1)">'                        NONE
 check '<a href="/foo">link</a>'                      NONE
 check '<!DOCTYPE html>'                              NONE
 check '<div style="color:red">x</div>'               NONE

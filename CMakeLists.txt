@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(sql_ragel LANGUAGES C)
 
-# 顶层构建：rules/{sql,log4j,xss}/*.rl --ragel--> C 状态机 -> libragel_sql.a
-# 驱动：sql_scan + examples/{sqli,log4j,xss}_scan
-# 验证：test.sh + examples/test_{sqli,log4j,xss}.sh
+# 顶层构建：rules/{sql,log4j,html5_xss,js}/*.rl --ragel--> C 状态机 -> libragel_sql.a
+# 驱动：sql_scan + examples/{sqli,log4j,html5_xss,js}_scan
+# 验证：test.sh + examples/test_{sqli,log4j,html5_xss,js}.sh
 #
 #   cmake -S . -B build && cmake --build build -j
 #   cmake --build build --target validate_ragel
@@ -19,6 +19,7 @@ set(SQL_DIR   ${PROJECT_SOURCE_DIR}/rules/sql)
 set(LOG4J_DIR ${PROJECT_SOURCE_DIR}/rules/log4j)
 set(HTML5_XSS_DIR   ${PROJECT_SOURCE_DIR}/rules/html5_xss)
 set(HTML5_DIR ${PROJECT_SOURCE_DIR}/rules/html5)
+set(JS_DIR    ${PROJECT_SOURCE_DIR}/rules/js)
 set(GEN_DIR   ${CMAKE_BINARY_DIR}/ragel/gen)
 set(BIN_DIR   ${CMAKE_BINARY_DIR}/ragel)
 file(MAKE_DIRECTORY ${GEN_DIR})
@@ -68,6 +69,20 @@ add_custom_command(
     COMMENT "ragel: html5_xss_rules.c"
     VERBATIM
 )
+add_custom_command(
+    OUTPUT ${GEN_DIR}/js_tokens.c
+    COMMAND ${RAGEL} -C -o ${GEN_DIR}/js_tokens.c ${JS_DIR}/js_tokens.rl
+    DEPENDS ${JS_DIR}/js_tokens.rl ${JS_DIR}/js_tokens.h
+    COMMENT "ragel: js_tokens.c"
+    VERBATIM
+)
+add_custom_command(
+    OUTPUT ${GEN_DIR}/js_syntax.c
+    COMMAND ${RAGEL} -C -o ${GEN_DIR}/js_syntax.c ${JS_DIR}/js_syntax.rl
+    DEPENDS ${JS_DIR}/js_syntax.rl ${JS_DIR}/js_tokens.h ${JS_DIR}/js_shared.rl
+    COMMENT "ragel: js_syntax.c"
+    VERBATIM
+)
 
 # ------------------------------------------------------------
 # 2. 规则库（sql + log4j + xss）
@@ -79,9 +94,12 @@ add_library(ragel_sql STATIC
     ${GEN_DIR}/log4j_lookup.c
     ${GEN_DIR}/html5_tokens.c
     ${GEN_DIR}/html5_xss_rules.c
+    ${GEN_DIR}/js_tokens.c
+    ${GEN_DIR}/js_syntax.c
+    ${JS_DIR}/js_danger.c
 )
 target_include_directories(ragel_sql
-    PUBLIC ${SQL_DIR} ${LOG4J_DIR} ${HTML5_XSS_DIR} ${HTML5_DIR}
+    PUBLIC ${SQL_DIR} ${LOG4J_DIR} ${HTML5_XSS_DIR} ${HTML5_DIR} ${JS_DIR}
     PRIVATE ${GEN_DIR}
 )
 set_target_properties(ragel_sql PROPERTIES
@@ -111,6 +129,11 @@ target_include_directories(html5_xss_scan PRIVATE ${HTML5_XSS_DIR} ${HTML5_DIR})
 target_link_libraries(html5_xss_scan PRIVATE ragel_sql)
 set_target_properties(html5_xss_scan PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
 
+add_executable(js_scan ${PROJECT_SOURCE_DIR}/examples/js_scan.c)
+target_include_directories(js_scan PRIVATE ${JS_DIR})
+target_link_libraries(js_scan PRIVATE ragel_sql)
+set_target_properties(js_scan PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
+
 # ------------------------------------------------------------
 # 4. 测试
 # ------------------------------------------------------------
@@ -119,7 +142,8 @@ add_custom_target(validate_ragel
     COMMAND ${PROJECT_SOURCE_DIR}/examples/test_sqli.sh $<TARGET_FILE:sqli_scan>
     COMMAND ${PROJECT_SOURCE_DIR}/examples/test_log4j.sh $<TARGET_FILE:log4j_scan>
     COMMAND ${PROJECT_SOURCE_DIR}/examples/test_html5_xss.sh $<TARGET_FILE:html5_xss_scan>
-    DEPENDS sql_scan sqli_scan log4j_scan html5_xss_scan
-    COMMENT "validate: sql 骨架 + sqli + log4j + xss"
+    COMMAND ${PROJECT_SOURCE_DIR}/examples/test_js.sh $<TARGET_FILE:js_scan>
+    DEPENDS sql_scan sqli_scan log4j_scan html5_xss_scan js_scan
+    COMMENT "validate: sql 骨架 + sqli + log4j + html5_xss + js"
     VERBATIM
 )

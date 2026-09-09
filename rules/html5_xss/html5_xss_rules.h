@@ -31,6 +31,7 @@ HTML5_XSS_DECL(black_attr)
 HTML5_XSS_DECL(black_url)
 HTML5_XSS_DECL(style_expr)
 HTML5_XSS_DECL(dangerous_comment)
+HTML5_XSS_DECL(dangerous_js)
 
 #undef HTML5_XSS_DECL
 

@@ -46,6 +46,7 @@ static const RuleDef RULES[] = {
     R(black_url),
     R(style_expr),
     R(dangerous_comment),
+    R(dangerous_js),
 };
 #undef R
 
