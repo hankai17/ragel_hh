@@ -11,7 +11,7 @@
  *   black_url         ATTR_NAME(URI) + ATTR_VALUE(黑 URL)      -> 危险
  *   style_expr        ATTR_NAME(style/filter) + 值含 expression -> 危险
  *   dangerous_comment TAG_COMMENT 含反引号 / [if / xml / import -> 危险
- *   dangerous_js      ATTR_VALUE 值含危险 JS 调用（语义分析）     -> 危险
+ *   dangerous_js      ATTR_VALUE / SCRIPT_TEXT 含危险 JS 调用（语义）-> 危险
  *
  * 相对 libinjection 的两处"精细化"（不激进，避免误报）：
  *   1. DOCTYPE 不再直接判危险（正常页面都有 <!DOCTYPE html>）；
@@ -211,7 +211,7 @@ static int is_dangerous_comment(const char* s, int len) {
     black_url        := ATTR_NAME $is_url_attr_p ATTR_VALUE $is_burl %note any*;
     style_expr       := ATTR_NAME $is_style_attr_p ATTR_VALUE $is_style_val %note any*;
     dangerous_comment := TAG_COMMENT $is_dcomment %note any*;
-    dangerous_js     := ATTR_VALUE $is_djs %note any*;
+    dangerous_js     := ( ATTR_VALUE | SCRIPT_TEXT ) $is_djs %note any*;
 
     write data noerror nofinal;
 }%%

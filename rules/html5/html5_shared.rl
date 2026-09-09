@@ -20,4 +20,8 @@
     ATTR_VALUE = 7;
     TAG_COMMENT = 8;
     DOCTYPE = 9;
+    SCRIPT_TEXT = 10;
+    RAWTEXT_TEXT = 11;
+    RCDATA_TEXT = 12;
+    PLAINTEXT_TEXT = 13;
 }%%

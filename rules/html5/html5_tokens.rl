@@ -20,6 +20,7 @@
  * 生成：ragel -C -o html5_tokens.c html5_tokens.rl
  * ============================================================ */
 
+#include <ctype.h>
 #include <string.h>
 
 #include "html5_tokens.h"
@@ -29,6 +30,14 @@ static int h5_cap;
 static int h5_n;
 static const char* tok_s;   /* 当前 token 起始指针 */
 static int is_close;        /* </ 闭合标签标志 */
+
+/* 当前文本内容状态（raw-text 元素分类） */
+static const char* text_end_tag;  /* 闭合标签名（NULL = 无闭合，plaintext） */
+static int text_end_len;
+static H5TokType text_tok_type;
+static const char* tag_name_s;    /* 当前开标签名（属性处理后仍可追溯） */
+static int tag_name_len;
+static int was_close;             /* 当前处理的标签是否为闭合标签 */
 
 static void h5_emit(H5TokType t, const char* s, int len) {
     if (h5_n < h5_cap) {
@@ -51,8 +60,53 @@ const char* h5_tok_name(H5TokType t) {
         case H5_ATTR_VALUE:         return "ATTR_VALUE";
         case H5_TAG_COMMENT:        return "TAG_COMMENT";
         case H5_DOCTYPE:            return "DOCTYPE";
+        case H5_SCRIPT_TEXT:        return "SCRIPT_TEXT";
+        case H5_RAWTEXT_TEXT:       return "RAWTEXT_TEXT";
+        case H5_RCDATA_TEXT:        return "RCDATA_TEXT";
+        case H5_PLAINTEXT_TEXT:     return "PLAINTEXT_TEXT";
         default:                    return "?";
     }
+}
+
+/* 大小写不敏感完整匹配（忽略 null） */
+static int ci_eq(const char* s, int len, const char* pat) {
+    for (int i = 0; i < len; ++i) {
+        if (pat[i] == '\0') return 0;
+        if (tolower((unsigned char)s[i]) != tolower((unsigned char)pat[i])) return 0;
+    }
+    return pat[len] == '\0';
+}
+
+/* 固定长度大小写不敏感比较（pat 不要求 '\0' 结尾，用于输入缓冲区内的标签名） */
+static int ci_eq_len(const char* s, const char* pat, int len) {
+    for (int i = 0; i < len; ++i) {
+        if (tolower((unsigned char)s[i]) != tolower((unsigned char)pat[i])) return 0;
+    }
+    return 1;
+}
+
+/* 标签名 -> 文本内容类别：0 普通 / 1 RCDATA / 2 RAWTEXT / 3 SCRIPT / 4 PLAINTEXT */
+static int text_content_type(const char* s, int len) {
+    if (ci_eq(s, len, "script")) return 3;
+    if (ci_eq(s, len, "plaintext")) return 4;
+    if (ci_eq(s, len, "style") || ci_eq(s, len, "xmp") ||
+        ci_eq(s, len, "iframe") || ci_eq(s, len, "noembed") ||
+        ci_eq(s, len, "noframes")) return 2;
+    if (ci_eq(s, len, "textarea") || ci_eq(s, len, "title")) return 1;
+    return 0;
+}
+
+/* 根据当前开标签名决定进入文本内容状态，返回 1 表示应进入 text_content */
+static int enter_text_or_data(void) {
+    int t = text_content_type(tag_name_s, tag_name_len);
+    if (t == 0) return 0;
+    text_end_tag = tag_name_s;
+    text_end_len = tag_name_len;
+    if (t == 3)      text_tok_type = H5_SCRIPT_TEXT;
+    else if (t == 2) text_tok_type = H5_RAWTEXT_TEXT;
+    else if (t == 1) text_tok_type = H5_RCDATA_TEXT;
+    else { text_tok_type = H5_PLAINTEXT_TEXT; text_end_tag = NULL; text_end_len = 0; }
+    return 1;
 }
 
 %%{
@@ -61,7 +115,8 @@ const char* h5_tok_name(H5TokType t) {
     # ---- 动作 ----
     action b_tok { tok_s = p; }
     action e_data    { if (p - tok_s > 0) h5_emit(H5_DATA_TEXT, tok_s, p - tok_s); }
-    action e_topen   { h5_emit(H5_TAG_NAME_OPEN, tok_s, p - tok_s); }
+    action e_topen   { h5_emit(H5_TAG_NAME_OPEN, tok_s, p - tok_s);
+                       tag_name_s = tok_s; tag_name_len = (int)(p - tok_s); }
     action e_tclose  { h5_emit(H5_TAG_NAME_CLOSE, p, 1); }
     action e_self    { h5_emit(H5_TAG_NAME_SELFCLOSE, p - 2, 2); }
     action e_attr    { h5_emit(H5_ATTR_NAME, tok_s, p - tok_s); }
@@ -140,16 +195,20 @@ const char* h5_tok_name(H5TokType t) {
                 | '>' >{ if (is_close) {
                               h5_emit(H5_TAG_CLOSE, tok_s, p - tok_s);
                               is_close = 0;
+                              was_close = 1;
                           } else {
                               h5_emit(H5_TAG_NAME_OPEN, tok_s, p - tok_s);
                               h5_emit(H5_TAG_NAME_CLOSE, p, 1);
-                          } }
-                  @{ fgoto h5_data; } );
+                              tag_name_s = tok_s;
+                              tag_name_len = (int)(p - tok_s);
+                              was_close = 0;
+                              } }
+                              @{ if (!was_close && enter_text_or_data()) fgoto text_content; fgoto h5_data; } );
 
     # BEFORE_ATTRIBUTE_NAME：标签名后跳过空白
     before_attr := h_ws*
                    ( '/' @{ fgoto self_closing; }
-                   | '>' >e_tclose @{ fgoto h5_data; }
+                   | '>' >e_tclose @{ if (enter_text_or_data()) fgoto text_content; fgoto h5_data; }
                    | any >b_tok @{ fgoto attr_name; } );
 
     # ATTRIBUTE_NAME：读属性名
@@ -159,13 +218,13 @@ const char* h5_tok_name(H5TokType t) {
                  | '=' @e_attr @{ fgoto before_avalue; }
                  | '>' >{ h5_emit(H5_ATTR_NAME, tok_s, p - tok_s);
                            h5_emit(H5_TAG_NAME_CLOSE, p, 1); }
-                   @{ fgoto h5_data; } );
+                   @{ if (enter_text_or_data()) fgoto text_content; fgoto h5_data; } );
 
     # AFTER_ATTRIBUTE_NAME：属性名后跳过空白
     after_attr := h_ws*
                   ( '/' @{ fgoto self_closing; }
                   | '=' @{ fgoto before_avalue; }
-                  | '>' >e_tclose @{ fgoto h5_data; }
+                  | '>' >e_tclose @{ if (enter_text_or_data()) fgoto text_content; fgoto h5_data; }
                   | any >b_tok @{ fgoto attr_name; } );
 
     # BEFORE_ATTRIBUTE_VALUE：= 后
@@ -183,12 +242,12 @@ const char* h5_tok_name(H5TokType t) {
     # 无引号属性值
     avalue_nq := ( any - ( h_ws | '>' ) )* %e_aval
                  ( h_ws @{ fgoto before_attr; }
-                 | '>' >{ h5_emit(H5_TAG_NAME_CLOSE, p, 1); } @{ fgoto h5_data; } );
+                 | '>' >{ h5_emit(H5_TAG_NAME_CLOSE, p, 1); } @{ if (enter_text_or_data()) fgoto text_content; fgoto h5_data; } );
 
     # AFTER_ATTRIBUTE_VALUE：引号值后
     after_avalue := h_ws*
                     ( '/' @{ fgoto self_closing; }
-                    | '>' >e_tclose @{ fgoto h5_data; }
+                    | '>' >e_tclose @{ if (enter_text_or_data()) fgoto text_content; fgoto h5_data; }
                     | any @{ fgoto before_attr; } );
 
     # SELF_CLOSING：/>
@@ -198,6 +257,33 @@ const char* h5_tok_name(H5TokType t) {
 
     # MARKUP_DECLARATION：<! 后（DOCTYPE/CDATA/注释/bogus 在 markup_dispatch 内用 memchr 处理）
     markup_decl := any >markup_dispatch;
+
+    # TEXT_CONTENT：raw-text 元素内容（script/style/textarea/... 直到闭合标签）
+    action text_dispatch {
+        const char* end = NULL;
+        if (text_end_tag) {
+            const char* q = p;
+            while (q + 2 < pe) {
+                const char* lt = (const char*)memchr(q, '<', (size_t)(pe - q));
+                if (!lt) break;
+                if (lt + 2 + text_end_len <= pe && lt[1] == '/' &&
+                    ci_eq_len(lt + 2, text_end_tag, text_end_len)) {
+                    end = lt;
+                    break;
+                }
+                q = lt + 1;
+            }
+        }
+        h5_emit(text_tok_type, p, (int)((end ? end : pe) - p));
+        if (end) {
+            p = end;          /* < 的位置，fgoto 后 ++p 指向 / */
+            fgoto tag_open;   /* 处理 </script> 等闭合标签 */
+        } else {
+            p = pe - 1;
+            fgoto h5_data;    /* plaintext 或未闭合，到末尾 */
+        }
+    }
+    text_content := any >text_dispatch;
 
     write data noerror nofinal;
 }%%

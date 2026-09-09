@@ -41,11 +41,11 @@ typedef struct {
 
 #define R(name) { #name, html5_xss_match_##name }
 static const RuleDef RULES[] = {
-    R(black_tag),
-    R(black_attr),
-    R(black_url),
-    R(style_expr),
-    R(dangerous_comment),
+    //R(black_tag),
+    //R(black_attr),
+    //R(black_url),
+    //R(style_expr),
+    //R(dangerous_comment),
     R(dangerous_js),
 };
 #undef R

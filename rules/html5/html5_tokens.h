@@ -32,6 +32,11 @@ typedef enum {
     H5_ATTR_VALUE = 7,
     H5_TAG_COMMENT = 8,
     H5_DOCTYPE = 9,
+    /* 文本内容类别（对齐 WHATWG HTML raw-text / RCDATA 状态） */
+    H5_SCRIPT_TEXT = 10,    /* <script> 内容（JS 代码） */
+    H5_RAWTEXT_TEXT = 11,   /* <style>/<xmp>/<iframe>/<noembed>/<noframes> 内容 */
+    H5_RCDATA_TEXT = 12,    /* <textarea>/<title> 内容 */
+    H5_PLAINTEXT_TEXT = 13, /* <plaintext> 内容（无闭合） */
 } H5TokType;
 
 typedef struct {
