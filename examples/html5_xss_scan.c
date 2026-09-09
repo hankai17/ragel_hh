@@ -1,22 +1,22 @@
 /* ============================================================
- * xss_scan.c — xss_rules.rl（5 条 XSS 黑名单规则）的调用示例
+ * html5_xss_scan.c — html5_xss_rules.rl（5 条 XSS 黑名单规则）的调用示例
  * ------------------------------------------------------------
  * 位于 examples/，演示"调用方视角"：
  *   1) 词法层（html5_tokens.rl）扫描 -> token 流
- *   2) xss_rules.rl 的 5 个规则入口在 token 类型数组上
+ *   2) html5_xss_rules.rl 的 5 个规则入口在 token 类型数组上
  *      逐位置独立匹配（对齐 libinjection is_xss 主循环语义）
  *
- * 调用方只需 include html5_tokens.h / xss_rules.h 并链接
- * libragel_sql（html5_tokens + xss_rules 打包），无需 ragel。
+ * 调用方只需 include html5_tokens.h / html5_xss_rules.h 并链接
+ * libragel_sql（html5_tokens + html5_xss_rules 打包），无需 ragel。
  *
- * 用法：./xss_scan '<payload>' [<payload>...]
+ * 用法：./html5_xss_scan '<payload>' [<payload>...]
  * ============================================================ */
 
 #include <stdio.h>
 #include <string.h>
 
 #include "html5_tokens.h"
-#include "xss_rules.h"
+#include "html5_xss_rules.h"
 
 #define MAX_TOK 1024
 
@@ -39,7 +39,7 @@ typedef struct {
     int (*match)(const int*, int, int, const H5Tok*, int*);
 } RuleDef;
 
-#define R(name) { #name, xss_match_##name }
+#define R(name) { #name, html5_xss_match_##name }
 static const RuleDef RULES[] = {
     R(black_tag),
     R(black_attr),

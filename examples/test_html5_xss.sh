@@ -5,12 +5,12 @@
 # 断言每个载荷首个命中的规则：
 #   black_tag / black_attr / black_url / style_expr /
 #   dangerous_comment / NONE
-# 用例覆盖 rules/xss/corpus/xss.log 的典型 XSS 样本。
+# 用例覆盖 rules/html5_xss/corpus/xss.log 的典型 XSS 样本。
 # usage: test.sh [scan_binary]
 # ============================================================
 set -u
 
-SCAN="${1:-./xss_scan}"
+SCAN="${1:-./html5_xss_scan}"
 pass=0
 fail=0
 

@@ -1,7 +1,7 @@
 /* ============================================================
  * html5_shared.rl — HTML5 token 编号共享
  * ------------------------------------------------------------
- * 供规则层（rules/xss 黑名单）按名 include：
+ * 供规则层（rules/html5_xss 黑名单）按名 include：
  *   include html5_shared "html5_shared.rl";
  *
  * token 编号与 html5_tokens.h 的 H5TokType 枚举严格一致。

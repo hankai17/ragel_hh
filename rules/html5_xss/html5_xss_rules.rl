@@ -1,5 +1,5 @@
 /* ============================================================
- * xss_rules.rl — XSS 黑名单规则（对齐 libinjection_xss.c is_xss）
+ * html5_xss_rules.rl — XSS 黑名单规则（对齐 libinjection_xss.c is_xss）
  * ------------------------------------------------------------
  * 输入：token 类型数组（lex_html5 产出，见 html5_tokens.h）。
  * 每条 <name> 规则 = 一个独立机器入口，驱动逐位置逐规则匹配，
@@ -21,7 +21,7 @@
  *   is_black_url 不做 HTML 实体解码（&#106;ascript:）、不做字母间
  *   空白折叠（jav\tascript:）、不做 null 跳过；只跳过前导空白。
  *
- * 生成：ragel -C -o xss_rules.c xss_rules.rl
+ * 生成：ragel -C -o html5_xss_rules.c html5_xss_rules.rl
  * ============================================================ */
 
 #include <ctype.h>
@@ -163,7 +163,7 @@ static int is_dangerous_comment(const char* s, int len) {
 }
 
 %%{
-    machine xss;
+    machine html5_xss;
     include html5_shared "html5_shared.rl";
 
     # 命中记录（leaving）：离开规则终态时记录 token 长度
@@ -212,7 +212,7 @@ static int is_dangerous_comment(const char* s, int len) {
 /* ------------------------------------------------------------
  * 运行期：通用 run（cs0 指定入口）+ 每个规则一个导出函数
  * ------------------------------------------------------------ */
-static int run_xss(const int* types, int n, int start, int cs0,
+static int run_html5_xss(const int* types, int n, int start, int cs0,
                    const H5Tok* tk, int* len) {
     const int* p = types + start;
     const int* pe = types + n;
@@ -221,7 +221,7 @@ static int run_xss(const int* types, int n, int start, int cs0,
     int match_len = 0;
 
     %%{
-        machine xss;
+        machine html5_xss;
         write exec;
     }%%
 
@@ -232,15 +232,15 @@ static int run_xss(const int* types, int n, int start, int cs0,
     return 0;
 }
 
-/* ragel 为每个 `:=` 入口生成 xss_en_<name> 起始状态常量 */
-#define XSS_ENTRY(name) \
-    int xss_match_##name(const int* types, int n, int start, \
+/* ragel 为每个 `:=` 入口生成 html5_xss_en_<name> 起始状态常量 */
+#define HTML5_XSS_ENTRY(name) \
+    int html5_xss_match_##name(const int* types, int n, int start, \
                          const H5Tok* tk, int* len) { \
-        return run_xss(types, n, start, xss_en_##name, tk, len); \
+        return run_html5_xss(types, n, start, html5_xss_en_##name, tk, len); \
     }
 
-XSS_ENTRY(black_tag)
-XSS_ENTRY(black_attr)
-XSS_ENTRY(black_url)
-XSS_ENTRY(style_expr)
-XSS_ENTRY(dangerous_comment)
+HTML5_XSS_ENTRY(black_tag)
+HTML5_XSS_ENTRY(black_attr)
+HTML5_XSS_ENTRY(black_url)
+HTML5_XSS_ENTRY(style_expr)
+HTML5_XSS_ENTRY(dangerous_comment)

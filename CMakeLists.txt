@@ -17,9 +17,8 @@ endif()
 
 set(SQL_DIR   ${PROJECT_SOURCE_DIR}/rules/sql)
 set(LOG4J_DIR ${PROJECT_SOURCE_DIR}/rules/log4j)
-set(XSS_DIR   ${PROJECT_SOURCE_DIR}/rules/xss)
+set(HTML5_XSS_DIR   ${PROJECT_SOURCE_DIR}/rules/html5_xss)
 set(HTML5_DIR ${PROJECT_SOURCE_DIR}/rules/html5)
-set(JS_DIR    ${PROJECT_SOURCE_DIR}/rules/js)
 set(GEN_DIR   ${CMAKE_BINARY_DIR}/ragel/gen)
 set(BIN_DIR   ${CMAKE_BINARY_DIR}/ragel)
 file(MAKE_DIRECTORY ${GEN_DIR})
@@ -56,20 +55,6 @@ add_custom_command(
     VERBATIM
 )
 add_custom_command(
-    OUTPUT ${GEN_DIR}/js_tokens.c
-    COMMAND ${RAGEL} -C -o ${GEN_DIR}/js_tokens.c ${JS_DIR}/js_tokens.rl
-    DEPENDS ${JS_DIR}/js_tokens.rl ${JS_DIR}/js_tokens.h
-    COMMENT "ragel: js_tokens.c"
-    VERBATIM
-)
-add_custom_command(
-    OUTPUT ${GEN_DIR}/js_syntax.c
-    COMMAND ${RAGEL} -C -o ${GEN_DIR}/js_syntax.c ${JS_DIR}/js_syntax.rl
-    DEPENDS ${JS_DIR}/js_syntax.rl ${JS_DIR}/js_tokens.h ${JS_DIR}/js_shared.rl
-    COMMENT "ragel: js_syntax.c"
-    VERBATIM
-)
-add_custom_command(
     OUTPUT ${GEN_DIR}/html5_tokens.c
     COMMAND ${RAGEL} -C -o ${GEN_DIR}/html5_tokens.c ${HTML5_DIR}/html5_tokens.rl
     DEPENDS ${HTML5_DIR}/html5_tokens.rl ${HTML5_DIR}/html5_tokens.h
@@ -77,10 +62,10 @@ add_custom_command(
     VERBATIM
 )
 add_custom_command(
-    OUTPUT ${GEN_DIR}/xss_rules.c
-    COMMAND ${RAGEL} -C -I${HTML5_DIR} -o ${GEN_DIR}/xss_rules.c ${XSS_DIR}/xss_rules.rl
-    DEPENDS ${XSS_DIR}/xss_rules.rl ${XSS_DIR}/xss_rules.h ${HTML5_DIR}/html5_shared.rl
-    COMMENT "ragel: xss_rules.c"
+    OUTPUT ${GEN_DIR}/html5_xss_rules.c
+    COMMAND ${RAGEL} -C -I${HTML5_DIR} -o ${GEN_DIR}/html5_xss_rules.c ${HTML5_XSS_DIR}/html5_xss_rules.rl
+    DEPENDS ${HTML5_XSS_DIR}/html5_xss_rules.rl ${HTML5_XSS_DIR}/html5_xss_rules.h ${HTML5_DIR}/html5_shared.rl
+    COMMENT "ragel: html5_xss_rules.c"
     VERBATIM
 )
 
@@ -92,13 +77,11 @@ add_library(ragel_sql STATIC
     ${GEN_DIR}/sql_syntax.c
     ${GEN_DIR}/sqli_rules.c
     ${GEN_DIR}/log4j_lookup.c
-    ${GEN_DIR}/js_tokens.c
-    ${GEN_DIR}/js_syntax.c
     ${GEN_DIR}/html5_tokens.c
-    ${GEN_DIR}/xss_rules.c
+    ${GEN_DIR}/html5_xss_rules.c
 )
 target_include_directories(ragel_sql
-    PUBLIC ${SQL_DIR} ${LOG4J_DIR} ${XSS_DIR} ${HTML5_DIR} ${JS_DIR}
+    PUBLIC ${SQL_DIR} ${LOG4J_DIR} ${HTML5_XSS_DIR} ${HTML5_DIR}
     PRIVATE ${GEN_DIR}
 )
 set_target_properties(ragel_sql PROPERTIES
@@ -123,15 +106,10 @@ target_include_directories(log4j_scan PRIVATE ${LOG4J_DIR})
 target_link_libraries(log4j_scan PRIVATE ragel_sql)
 set_target_properties(log4j_scan PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
 
-add_executable(js_scan ${PROJECT_SOURCE_DIR}/examples/js_scan.c)
-target_include_directories(js_scan PRIVATE ${JS_DIR})
-target_link_libraries(js_scan PRIVATE ragel_sql)
-set_target_properties(js_scan PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
-
-add_executable(xss_scan ${PROJECT_SOURCE_DIR}/examples/xss_scan.c)
-target_include_directories(xss_scan PRIVATE ${XSS_DIR} ${HTML5_DIR})
-target_link_libraries(xss_scan PRIVATE ragel_sql)
-set_target_properties(xss_scan PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
+add_executable(html5_xss_scan ${PROJECT_SOURCE_DIR}/examples/html5_xss_scan.c)
+target_include_directories(html5_xss_scan PRIVATE ${HTML5_XSS_DIR} ${HTML5_DIR})
+target_link_libraries(html5_xss_scan PRIVATE ragel_sql)
+set_target_properties(html5_xss_scan PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
 
 # ------------------------------------------------------------
 # 4. 测试
@@ -140,9 +118,8 @@ add_custom_target(validate_ragel
     COMMAND ${PROJECT_SOURCE_DIR}/test.sh $<TARGET_FILE:sql_scan>
     COMMAND ${PROJECT_SOURCE_DIR}/examples/test_sqli.sh $<TARGET_FILE:sqli_scan>
     COMMAND ${PROJECT_SOURCE_DIR}/examples/test_log4j.sh $<TARGET_FILE:log4j_scan>
-    COMMAND ${PROJECT_SOURCE_DIR}/examples/test_js.sh $<TARGET_FILE:js_scan>
-    COMMAND ${PROJECT_SOURCE_DIR}/examples/test_xss.sh $<TARGET_FILE:xss_scan>
-    DEPENDS sql_scan sqli_scan log4j_scan js_scan xss_scan
-    COMMENT "validate: sql 骨架 + sqli + log4j + js + xss"
+    COMMAND ${PROJECT_SOURCE_DIR}/examples/test_html5_xss.sh $<TARGET_FILE:html5_xss_scan>
+    DEPENDS sql_scan sqli_scan log4j_scan html5_xss_scan
+    COMMENT "validate: sql 骨架 + sqli + log4j + xss"
     VERBATIM
 )
