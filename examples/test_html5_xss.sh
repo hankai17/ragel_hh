@@ -42,6 +42,9 @@ check '<object data=x></object>'                     black_tag
 check '<embed src=x>'                                black_tag
 # IE 反引号容错：<SCRIPT a=`>` ...> 结构可辨 + src 外链，正文为空
 check '<SCRIPT a=`>` SRC="http://xss.rocks/xss.js"></SCRIPT>' black_tag
+# `<<` 畸形开标签：规范输出 '<' 为文本并退回重读，仍解析出真标签
+check '<<SCRIPT>alert("XSS");//\<</SCRIPT>'          black_tag
+check '<<img src=x onerror=alert(1)>'                black_attr
 
 # ---- black_attr：on* 事件等黑属性 ----
 check '<img onerror=alert(1)>'                       black_attr
@@ -94,6 +97,7 @@ check '<img src=x onerror="&#0000106&#0000097&#0000118&#0000097&#0000115&#000009
 check '<a href="javascript&colon;alert(1)">'         dangerous_js
 check '<a href="jav&#x09;ascript:alert(1)">'         dangerous_js
 check '<IMG SRC= " &#14; javascript:alert("XSS");">' dangerous_js
+check '<<SCRIPT>alert("XSS");//\<</SCRIPT>'         dangerous_js
 
 # ---- 负样本：不应命中（精细化，不误报）----
 check '<div>hello</div>'                             NONE
@@ -110,6 +114,9 @@ check '<div style="color:red">x</div>'               NONE
 check '<img src="logo.png">'                         NONE
 check '<a href="https://example.com">ok</a>'         NONE
 check 'hello world'                                  NONE
+# `<` 后跟非字母（改动了 tag_open 兜底分支）：应纯文本，不误报
+check 'a < b'                                        NONE
+check '1<2'                                          NONE
 
 echo
 echo "summary: $pass passed, $fail failed"

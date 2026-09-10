@@ -178,7 +178,11 @@ static int enter_text_or_data(void) {
                        h5_emit(H5_TAG_COMMENT, p + 1, (int)((end ? end : pe) - (p + 1)));
                        p = end ? end + 1 : pe - 1; fgoto h5_data; }
               | ( h_alpha | 0 ) >b_tok @{ fgoto tag_name; }
-              | any @{ fgoto h5_data; };
+              # 其余字符：对齐 WHATWG tag_open state —— 输出 '<' 为文本，
+              # 并 fhold 退回当前字符，让 data 状态重新消费（reconsume）。
+              # 缺 fhold 会连吞两个字符，<<SCRIPT> 这类写法就丢掉了真标签
+              # （浏览器按规范会解析出 <script>，形成绕过）。
+              | any @{ h5_emit(H5_DATA_TEXT, p - 1, 1); fhold; fgoto h5_data; };
 
     # END_TAG_OPEN：</ 后
     end_tag_open := '>' @{ is_close = 0; fgoto h5_data; }
