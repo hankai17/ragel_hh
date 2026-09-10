@@ -40,6 +40,8 @@ check '<svg/onload=alert(42)>'                       black_tag
 check '<iframe src=x></iframe>'                      black_tag
 check '<object data=x></object>'                     black_tag
 check '<embed src=x>'                                black_tag
+# IE 反引号容错：<SCRIPT a=`>` ...> 结构可辨 + src 外链，正文为空
+check '<SCRIPT a=`>` SRC="http://xss.rocks/xss.js"></SCRIPT>' black_tag
 
 # ---- black_attr：on* 事件等黑属性 ----
 check '<img onerror=alert(1)>'                       black_attr
@@ -52,6 +54,25 @@ check '<a href="javascript:alert(1)">Click</a>'      black_url
 check '<img src="javascript:alert(1)">'              black_url
 check '<form action="vbscript:msgbox(1)">'           black_url
 check '<img src="data:text/html,<script>">'          black_url
+# 引号错配（= 与引号间有空白）+ &#14; 实体 + 控制字符折叠
+check '<IMG SRC= " &#14; javascript:alert("XSS");">' black_url
+# HTML 数字实体解码（十进制/十六进制）还原 javascript: 前缀
+check '<a href="&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#39;&#88;&#83;&#83;&#39;&#41;">Click Me!</a>' black_url
+check $'<a href="jav&#x09;ascript:alert(\'XSS\');">Click Me</a>' black_url
+# 字母间 tab / 前导 &#14; 控制字符 + 空白折叠
+check $'<a href="jav\tascript:alert(\'XSS\');">Click Me</a>'     black_url
+check $'<a href=" &#14;  javascript:alert(\'XSS\');">Click Me</a>' black_url
+# 空格实体 &#32; / &#x20; 解码后同样折叠（与字面空格行为一致）
+check '<a href="&#32;javascript:alert(1)">'          black_url
+check '<a href="&#x20;javascript:alert(1)">'         black_url
+# 命名实体：&colon; / &Tab; / &NewLine;（分号必需、大小写敏感，对齐规范）
+check '<a href="javascript&colon;alert(1)">'         black_url
+check '<a href="java&Tab;script:alert(1)">'          black_url
+check '<a href="java&NewLine;script:alert(1)">'      black_url
+# 数字实体 + 命名实体混用
+check '<a href="&#106;avascript&colon;alert(1)">'    black_url
+# 大小写敏感：&COLON; 不是实体，black_url 不命中，但 alert( 仍被语义层抓到
+check '<a href="javascript&COLON;alert(1)">'         dangerous_js
 
 # ---- style_expr：style + expression/javascript: ----
 check '<div style="expression(alert(1))">'           style_expr
@@ -66,6 +87,13 @@ check '<img onerror="alert(1)">'                     dangerous_js
 check '<img onerror="String.fromCharCode(88,83,83)">' dangerous_js
 check '<img onerror="document.cookie">'              dangerous_js
 check '<img onerror="a[&quot;eval&quot;](&quot;alert(1)&quot;)">' dangerous_js
+# 语义层独立可用：属性值先解 HTML 实体再分析，不依赖 black_url
+check '<a href="&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#39;&#88;&#83;&#83;&#39;&#41;">Click Me!</a>' dangerous_js
+check '<a href="&#x6A&#x61&#x76&#x61&#x73&#x63&#x72&#x69&#x70&#x74&#x3A&#x61&#x6C&#x65&#x72&#x74&#x28&#x27&#x58&#x53&#x53&#x27&#x29">Click Me</a>' dangerous_js
+check '<img src=x onerror="&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058&#0000097&#0000108&#0000101&#0000114&#0000116&#0000040&#0000039&#0000088&#0000083&#0000083&#0000039&#0000041">' dangerous_js
+check '<a href="javascript&colon;alert(1)">'         dangerous_js
+check '<a href="jav&#x09;ascript:alert(1)">'         dangerous_js
+check '<IMG SRC= " &#14; javascript:alert("XSS");">' dangerous_js
 
 # ---- 负样本：不应命中（精细化，不误报）----
 check '<div>hello</div>'                             NONE
@@ -73,6 +101,10 @@ check '<p class="x">text</p>'                        NONE
 check '<a title="hello">'                            NONE
 check '<div data-x="foo(1)">'                        NONE
 check '<a href="/foo">link</a>'                      NONE
+# 实体解码不得引入误报：普通路径/查询串里的 &colon; &amp; 无害
+check '<a href="/foo&colon;bar">'                    NONE
+check '<a href="https://example.com?a=1&amp;b=2">'   NONE
+check '<a href="&sect=1">'                           NONE
 check '<!DOCTYPE html>'                              NONE
 check '<div style="color:red">x</div>'               NONE
 check '<img src="logo.png">'                         NONE

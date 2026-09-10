@@ -1,10 +1,11 @@
 /* ============================================================
- * html5_xss_scan.c — html5_xss_rules.rl（5 条 XSS 黑名单规则）的调用示例
+ * html5_xss_scan.c — html5_xss_rules.rl（6 条 XSS 规则）的调用示例
  * ------------------------------------------------------------
  * 位于 examples/，演示"调用方视角"：
  *   1) 词法层（html5_tokens.rl）扫描 -> token 流
- *   2) html5_xss_rules.rl 的 5 个规则入口在 token 类型数组上
+ *   2) html5_xss_rules.rl 的 6 个规则入口在 token 类型数组上
  *      逐位置独立匹配（对齐 libinjection is_xss 主循环语义）
+ *      结构层 black_* + 语义层 dangerous_js，形成完整链路
  *
  * 调用方只需 include html5_tokens.h / html5_xss_rules.h 并链接
  * libragel_sql（html5_tokens + html5_xss_rules 打包），无需 ragel。
@@ -41,11 +42,13 @@ typedef struct {
 
 #define R(name) { #name, html5_xss_match_##name }
 static const RuleDef RULES[] = {
-    //R(black_tag),
-    //R(black_attr),
-    //R(black_url),
-    //R(style_expr),
-    //R(dangerous_comment),
+    /* 结构层：标签/属性/URL/CSS/注释黑名单 */
+    R(black_tag),
+    R(black_attr),
+    R(black_url),
+    R(style_expr),
+    R(dangerous_comment),
+    /* 语义层：属性值 / 脚本正文内的危险 JS 调用 */
     R(dangerous_js),
 };
 #undef R

@@ -206,10 +206,13 @@ static int enter_text_or_data(void) {
                               @{ if (!was_close && enter_text_or_data()) fgoto text_content; fgoto h5_data; } );
 
     # BEFORE_ATTRIBUTE_NAME：标签名后跳过空白
+    # 注意：兜底分支必须是 ( any - h_ws )，不能用 any —— h_ws* 的循环边与
+    # any 在空白字符上有歧义，Ragel 确定化时兜底分支会抢走空白，导致只跳一个
+    # 空白就落入属性名（多空格时属性名带前导空格，<img  onerror> 绕过黑名单）。
     before_attr := h_ws*
                    ( '/' @{ fgoto self_closing; }
                    | '>' >e_tclose @{ if (enter_text_or_data()) fgoto text_content; fgoto h5_data; }
-                   | any >b_tok @{ fgoto attr_name; } );
+                   | ( any - h_ws ) >b_tok @{ fgoto attr_name; } );
 
     # ATTRIBUTE_NAME：读属性名
     attr_name := ( any - ( h_ws | '/' | '=' | '>' ) )*
@@ -220,19 +223,21 @@ static int enter_text_or_data(void) {
                            h5_emit(H5_TAG_NAME_CLOSE, p, 1); }
                    @{ if (enter_text_or_data()) fgoto text_content; fgoto h5_data; } );
 
-    # AFTER_ATTRIBUTE_NAME：属性名后跳过空白
+    # AFTER_ATTRIBUTE_NAME：属性名后跳过空白（同 before_attr，兜底排除 h_ws）
     after_attr := h_ws*
                   ( '/' @{ fgoto self_closing; }
                   | '=' @{ fgoto before_avalue; }
                   | '>' >e_tclose @{ if (enter_text_or_data()) fgoto text_content; fgoto h5_data; }
-                  | any >b_tok @{ fgoto attr_name; } );
+                  | ( any - h_ws ) >b_tok @{ fgoto attr_name; } );
 
-    # BEFORE_ATTRIBUTE_VALUE：= 后
+    # BEFORE_ATTRIBUTE_VALUE：= 后跳过空白，对齐浏览器宽容解析
+    #   SRC= "x"（= 与引号间有空白）必须先吃光空白再认引号；
+    #   反引号 ` 按 IE 行为视作引号分隔符（<SCRIPT a=`>` ...>）。
     before_avalue := h_ws*
                      ( '"'  @{ fgoto avalue_dq; }
                      | '\'' @{ fgoto avalue_sq; }
                      | '`'  @{ fgoto avalue_bq; }
-                     | any >b_tok @{ fgoto avalue_nq; } );
+                     | ( any - h_ws ) >b_tok @{ fgoto avalue_nq; } );
 
     # 引号属性值（token = 引号内内容，不含引号）
     avalue_dq := ( any - '"' )* >b_tok %e_aval '"' @{ fgoto after_avalue; };
@@ -244,11 +249,11 @@ static int enter_text_or_data(void) {
                  ( h_ws @{ fgoto before_attr; }
                  | '>' >{ h5_emit(H5_TAG_NAME_CLOSE, p, 1); } @{ if (enter_text_or_data()) fgoto text_content; fgoto h5_data; } );
 
-    # AFTER_ATTRIBUTE_VALUE：引号值后
+    # AFTER_ATTRIBUTE_VALUE：引号值后（同前，兜底排除 h_ws，允许多空白）
     after_avalue := h_ws*
                     ( '/' @{ fgoto self_closing; }
                     | '>' >e_tclose @{ if (enter_text_or_data()) fgoto text_content; fgoto h5_data; }
-                    | any @{ fgoto before_attr; } );
+                    | ( any - h_ws ) @{ fgoto before_attr; } );
 
     # SELF_CLOSING：/>
     self_closing := '>' >{ h5_emit(H5_TAG_NAME_SELFCLOSE, p - 1, 2); }
