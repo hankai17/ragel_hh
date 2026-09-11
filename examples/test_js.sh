@@ -60,7 +60,7 @@ check_none() {
 # ------------------------------------------------------------
 check_build() {
     local rl rc t0 t1 dt
-    rl="$(cd "$(dirname "$0")/../rules/js" && pwd)/js_syntax.rl"
+    rl="$(cd "$(dirname "$0")/../src/js" && pwd)/js_syntax.rl"
     t0=$(date +%s)
     ragel -C -o /tmp/_js_syntax_check.c "$rl" 2>/dev/null
     rc=$?

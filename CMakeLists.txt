@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 project(sql_ragel LANGUAGES C)
 
-# 顶层构建：rules/{sql,log4j,html5_xss,js}/*.rl --ragel--> C 状态机 -> libragel_sql.a
+# 目录约定：
+#   src/{sql,log4j,html5,js}/   词法层 + 共享片段 + 语法骨架（基础设施）
+#   rules/{html5_xss,sqli}/     检测规则库（规则 .rl + 头文件 + 语料）
+# 顶层构建：.rl --ragel--> C 状态机 -> libragel_sql.a
 # 驱动：sql_scan + examples/{sqli,log4j,html5_xss,js}_scan
 # 验证：test.sh + examples/test_{sqli,log4j,html5_xss,js}.sh
 #
@@ -15,11 +18,12 @@ if(NOT RAGEL)
     message(FATAL_ERROR "找不到 ragel（例如 apt install ragel）")
 endif()
 
-set(SQL_DIR   ${PROJECT_SOURCE_DIR}/rules/sql)
-set(LOG4J_DIR ${PROJECT_SOURCE_DIR}/rules/log4j)
-set(HTML5_XSS_DIR   ${PROJECT_SOURCE_DIR}/rules/html5_xss)
-set(HTML5_DIR ${PROJECT_SOURCE_DIR}/rules/html5)
-set(JS_DIR    ${PROJECT_SOURCE_DIR}/rules/js)
+set(SQL_DIR   ${PROJECT_SOURCE_DIR}/src/sql)
+set(LOG4J_DIR ${PROJECT_SOURCE_DIR}/src/log4j)
+set(HTML5_DIR ${PROJECT_SOURCE_DIR}/src/html5)
+set(JS_DIR    ${PROJECT_SOURCE_DIR}/src/js)
+set(HTML5_XSS_DIR ${PROJECT_SOURCE_DIR}/rules/html5_xss)
+set(SQLI_DIR      ${PROJECT_SOURCE_DIR}/rules/sqli)
 set(GEN_DIR   ${CMAKE_BINARY_DIR}/ragel/gen)
 set(BIN_DIR   ${CMAKE_BINARY_DIR}/ragel)
 file(MAKE_DIRECTORY ${GEN_DIR})
@@ -43,8 +47,8 @@ add_custom_command(
 )
 add_custom_command(
     OUTPUT ${GEN_DIR}/sqli_rules.c
-    COMMAND ${RAGEL} -C -o ${GEN_DIR}/sqli_rules.c ${SQL_DIR}/sqli_rules.rl
-    DEPENDS ${SQL_DIR}/sqli_rules.rl ${SQL_DIR}/sqli_rules.h ${SQL_DIR}/sql_shared.rl
+    COMMAND ${RAGEL} -C -I${SQL_DIR} -o ${GEN_DIR}/sqli_rules.c ${SQLI_DIR}/sqli_rules.rl
+    DEPENDS ${SQLI_DIR}/sqli_rules.rl ${SQLI_DIR}/sqli_rules.h ${SQL_DIR}/sql_shared.rl
     COMMENT "ragel: sqli_rules.c"
     VERBATIM
 )
@@ -85,7 +89,7 @@ add_custom_command(
 )
 
 # ------------------------------------------------------------
-# 2. 规则库（sql + log4j + xss）
+# 2. 规则库（html5_xss + sqli）+ 基础设施（src/）
 # ------------------------------------------------------------
 add_library(ragel_sql STATIC
     ${GEN_DIR}/sql_tokens.c
@@ -99,7 +103,8 @@ add_library(ragel_sql STATIC
     ${JS_DIR}/js_danger.c
 )
 target_include_directories(ragel_sql
-    PUBLIC ${SQL_DIR} ${LOG4J_DIR} ${HTML5_XSS_DIR} ${HTML5_DIR} ${JS_DIR}
+    PUBLIC ${SQL_DIR} ${LOG4J_DIR} ${HTML5_DIR} ${JS_DIR}
+           ${HTML5_XSS_DIR} ${SQLI_DIR}
     PRIVATE ${GEN_DIR}
 )
 set_target_properties(ragel_sql PROPERTIES
@@ -115,7 +120,7 @@ target_link_libraries(sql_scan PRIVATE ragel_sql)
 set_target_properties(sql_scan PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
 
 add_executable(sqli_scan ${PROJECT_SOURCE_DIR}/examples/sqli_scan.c)
-target_include_directories(sqli_scan PRIVATE ${SQL_DIR})
+target_include_directories(sqli_scan PRIVATE ${SQL_DIR} ${SQLI_DIR})
 target_link_libraries(sqli_scan PRIVATE ragel_sql)
 set_target_properties(sqli_scan PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
 

@@ -1,7 +1,7 @@
 /* ============================================================
  * js_syntax.h — JavaScript 表达式语法骨架接口
  * ------------------------------------------------------------
- * 对应规则真源 rules/js/js_syntax.rl。expr 骨架匹配：
+ * 对应规则真源 src/js/js_syntax.rl。expr 骨架匹配：
  * 输入为 token 类型 int 数组（见 js_tokens.h）。
  *
  * 用法：include 本头并链接（js_tokens + js_syntax 打包），

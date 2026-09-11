@@ -1,15 +1,26 @@
-# 不依赖 cmake 的等价格建：
-#   rules/{sql,log4j,html5,html5_xss,js}/*.rl --ragel--> gen/*.c --cc--> libragel_sql.a --link--> 驱动
+# 不依赖 cmake 的等价构建：
+#   .rl --ragel--> build/ragel/gen/*.c --cc--> libragel_sql.a --link--> 驱动
+#
+# 目录约定：
+#   src/{sql,log4j,html5,js}/   词法层 + 共享片段 + 语法骨架（基础设施）
+#   rules/{html5_xss,sqli}/     检测规则库（规则 .rl + 头文件 + 语料）
+#
 #   驱动：sql_scan（主目录）+ examples/{sqli,log4j,html5_xss,js}_scan
 #   make test 跑五套断言（sql 骨架 / sqli / log4j / html5_xss / js）
 # 产物统一放 build/ragel/，与 CMake 路径一致。
 
-ROOT := $(abspath .)
-SQL_DIR   := $(ROOT)/rules/sql
-LOG4J_DIR := $(ROOT)/rules/log4j
-HTML5_DIR := $(ROOT)/rules/html5
-HTML5_XSS_DIR   := $(ROOT)/rules/html5_xss
-JS_DIR    := $(ROOT)/rules/js
+ROOT  := $(abspath .)
+SRC   := $(ROOT)/src
+RULES := $(ROOT)/rules
+
+SRC_SQL   := $(SRC)/sql
+SRC_LOG4J := $(SRC)/log4j
+SRC_HTML5 := $(SRC)/html5
+SRC_JS    := $(SRC)/js
+
+RULES_HTML5_XSS := $(RULES)/html5_xss
+RULES_SQLI      := $(RULES)/sqli
+
 GEN := $(ROOT)/build/ragel/gen
 BIN := $(ROOT)/build/ragel
 
@@ -18,7 +29,8 @@ CC    ?= gcc
 AR    ?= ar
 CFLAGS ?= -O2 -Wall -Wextra
 
-INC := -I$(SQL_DIR) -I$(LOG4J_DIR) -I$(HTML5_DIR) -I$(HTML5_XSS_DIR) -I$(JS_DIR)
+INC := -I$(SRC_SQL) -I$(SRC_LOG4J) -I$(SRC_HTML5) -I$(SRC_JS) \
+       -I$(RULES_HTML5_XSS) -I$(RULES_SQLI)
 
 OBJS := $(GEN)/sql_tokens.o $(GEN)/sql_syntax.o $(GEN)/sqli_rules.o \
         $(GEN)/log4j_lookup.o \
@@ -31,32 +43,36 @@ all: $(BIN)/sql_scan $(BIN)/sqli_scan $(BIN)/log4j_scan $(BIN)/html5_xss_scan $(
 $(GEN):
 	mkdir -p $(GEN) $(BIN)
 
-$(GEN)/sql_tokens.c: $(SQL_DIR)/sql_tokens.rl $(SQL_DIR)/sql_tokens.h | $(GEN)
+# ---- ragel 生成：.rl -> .c ----
+$(GEN)/sql_tokens.c: $(SRC_SQL)/sql_tokens.rl $(SRC_SQL)/sql_tokens.h | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
-$(GEN)/sql_syntax.c: $(SQL_DIR)/sql_syntax.rl $(SQL_DIR)/sql_tokens.h $(SQL_DIR)/sql_shared.rl | $(GEN)
+$(GEN)/sql_syntax.c: $(SRC_SQL)/sql_syntax.rl $(SRC_SQL)/sql_tokens.h $(SRC_SQL)/sql_shared.rl | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
-$(GEN)/sqli_rules.c: $(SQL_DIR)/sqli_rules.rl $(SQL_DIR)/sqli_rules.h $(SQL_DIR)/sql_shared.rl | $(GEN)
+# sqli_rules.rl 与 sql_shared.rl 不同目录，需显式 -I
+$(GEN)/sqli_rules.c: $(RULES_SQLI)/sqli_rules.rl $(RULES_SQLI)/sqli_rules.h $(SRC_SQL)/sql_shared.rl | $(GEN)
+	$(RAGEL) -C -I$(SRC_SQL) -o $@ $<
+
+$(GEN)/log4j_lookup.c: $(SRC_LOG4J)/log4j_lookup.rl $(SRC_LOG4J)/log4j_lookup.h | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
-$(GEN)/log4j_lookup.c: $(LOG4J_DIR)/log4j_lookup.rl $(LOG4J_DIR)/log4j_lookup.h | $(GEN)
+$(GEN)/html5_tokens.c: $(SRC_HTML5)/html5_tokens.rl $(SRC_HTML5)/html5_tokens.h | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
-$(GEN)/html5_tokens.c: $(HTML5_DIR)/html5_tokens.rl $(HTML5_DIR)/html5_tokens.h | $(GEN)
+# html5_xss_rules.rl 与 html5_shared.rl 不同目录，需显式 -I
+$(GEN)/html5_xss_rules.c: $(RULES_HTML5_XSS)/html5_xss_rules.rl $(RULES_HTML5_XSS)/html5_xss_rules.h $(SRC_HTML5)/html5_shared.rl | $(GEN)
+	$(RAGEL) -C -I$(SRC_HTML5) -o $@ $<
+
+$(GEN)/js_tokens.c: $(SRC_JS)/js_tokens.rl $(SRC_JS)/js_tokens.h | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
-$(GEN)/html5_xss_rules.c: $(HTML5_XSS_DIR)/html5_xss_rules.rl $(HTML5_XSS_DIR)/html5_xss_rules.h $(HTML5_DIR)/html5_shared.rl | $(GEN)
-	$(RAGEL) -C -I$(HTML5_DIR) -o $@ $<
-
-$(GEN)/js_tokens.c: $(JS_DIR)/js_tokens.rl $(JS_DIR)/js_tokens.h | $(GEN)
+$(GEN)/js_syntax.c: $(SRC_JS)/js_syntax.rl $(SRC_JS)/js_tokens.h $(SRC_JS)/js_shared.rl | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
-$(GEN)/js_syntax.c: $(JS_DIR)/js_syntax.rl $(JS_DIR)/js_tokens.h $(JS_DIR)/js_shared.rl | $(GEN)
-	$(RAGEL) -C -o $@ $<
-
-$(GEN)/js_danger.o: $(JS_DIR)/js_danger.c $(JS_DIR)/js_danger.h $(JS_DIR)/js_tokens.h | $(GEN)
-	$(CC) $(CFLAGS) $(INC) -c -o $@ $(JS_DIR)/js_danger.c
+# js_danger.c 是手写 C（非 ragel 生成），单独编译
+$(GEN)/js_danger.o: $(SRC_JS)/js_danger.c $(SRC_JS)/js_danger.h $(SRC_JS)/js_tokens.h | $(GEN)
+	$(CC) $(CFLAGS) $(INC) -c -o $@ $(SRC_JS)/js_danger.c
 
 $(GEN)/%.o: $(GEN)/%.c
 	$(CC) $(CFLAGS) $(INC) -c -o $@ $<
@@ -64,20 +80,21 @@ $(GEN)/%.o: $(GEN)/%.c
 $(LIB): $(OBJS)
 	$(AR) rcs $@ $(OBJS)
 
+# ---- 驱动 ----
 $(BIN)/sql_scan: sql_scan.c $(LIB)
-	$(CC) $(CFLAGS) -I$(SQL_DIR) -o $@ sql_scan.c $(LIB)
+	$(CC) $(CFLAGS) -I$(SRC_SQL) -o $@ sql_scan.c $(LIB)
 
 $(BIN)/sqli_scan: examples/sqli_scan.c $(LIB)
-	$(CC) $(CFLAGS) -I$(SQL_DIR) -o $@ examples/sqli_scan.c $(LIB)
+	$(CC) $(CFLAGS) -I$(SRC_SQL) -I$(RULES_SQLI) -o $@ examples/sqli_scan.c $(LIB)
 
 $(BIN)/log4j_scan: examples/log4j_scan.c $(LIB)
-	$(CC) $(CFLAGS) -I$(LOG4J_DIR) -o $@ examples/log4j_scan.c $(LIB)
+	$(CC) $(CFLAGS) -I$(SRC_LOG4J) -o $@ examples/log4j_scan.c $(LIB)
 
 $(BIN)/html5_xss_scan: examples/html5_xss_scan.c $(LIB)
-	$(CC) $(CFLAGS) -I$(HTML5_DIR) -I$(HTML5_XSS_DIR) -o $@ examples/html5_xss_scan.c $(LIB)
+	$(CC) $(CFLAGS) -I$(SRC_HTML5) -I$(RULES_HTML5_XSS) -o $@ examples/html5_xss_scan.c $(LIB)
 
 $(BIN)/js_scan: examples/js_scan.c $(LIB)
-	$(CC) $(CFLAGS) -I$(JS_DIR) -o $@ examples/js_scan.c $(LIB)
+	$(CC) $(CFLAGS) -I$(SRC_JS) -o $@ examples/js_scan.c $(LIB)
 
 test: all
 	./test.sh $(BIN)/sql_scan
