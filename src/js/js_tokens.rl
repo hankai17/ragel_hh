@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "js_tokens.h"
+#include "utf8.h"
 
 static JsTok* j_out;
 static int j_cap;
@@ -107,26 +108,37 @@ static int j_hex_val(char c) {
     return -1;
 }
 
-/* 码点 -> UTF-8，返回写入字节数（out 需 4 字节空间） */
-static int j_utf8_put(char* out, int cp) {
-    if (cp < 0x80) {
-        out[0] = (char)cp;
-        return 1;
-    } else if (cp < 0x800) {
-        out[0] = (char)(0xC0 | (cp >> 6));
-        out[1] = (char)(0x80 | (cp & 0x3F));
-        return 2;
-    } else if (cp < 0x10000) {
-        out[0] = (char)(0xE0 | (cp >> 12));
-        out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
-        out[2] = (char)(0x80 | (cp & 0x3F));
-        return 3;
+/* 解析 \uXXXX 或 \u{XXXXXX} 形式的转义（p 指向反斜杠）。
+ * 成功返回码点并令 *adv = 消耗字节数；不是合法转义返回 -1。
+ * 标识符与字符串字面量的还原共用这一份。 */
+static int j_parse_u_esc(const char* p, int len, int* adv) {
+    int cp = -1, a = 0;
+
+    if (len < 2 || p[0] != '\\' || p[1] != 'u') return -1;
+
+    if (len > 2 && p[2] == '{') {          /* \u{XXXXXX}：花括号内任意位 */
+        int j = 3, v = 0, any = 0;
+        while (j < len && p[j] != '}') {
+            int h = j_hex_val(p[j]);
+            if (h < 0) break;
+            v = (v << 4) | h;
+            any = 1;
+            ++j;
+        }
+        if (any && j < len && p[j] == '}') { cp = v; a = j + 1; }
+    } else if (len >= 6) {                 /* \uXXXX：固定 4 位 */
+        int k, v = 0, ok = 1;
+        for (k = 0; k < 4; ++k) {
+            int h = j_hex_val(p[2 + k]);
+            if (h < 0) { ok = 0; break; }
+            v = (v << 4) | h;
+        }
+        if (ok) { cp = v; a = 6; }
     }
-    out[0] = (char)(0xF0 | (cp >> 18));
-    out[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
-    out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
-    out[3] = (char)(0x80 | (cp & 0x3F));
-    return 4;
+
+    if (cp < 0 || cp > 0x10FFFF) return -1;
+    *adv = a;
+    return cp;
 }
 
 /* 还原标识符里的 \u 转义。无转义时直接返回 s（不拷贝）；有转义时写入
@@ -144,35 +156,11 @@ const char* js_decode_ident(const char* s, int len, char* buf, int cap, int* out
 
     for (i = 0; i < len; ) {
         if (s[i] == '\\' && i + 1 < len && s[i + 1] == 'u') {
-            int cp = -1, adv = 0;
-            if (i + 2 < len && s[i + 2] == '{') {
-                int j = i + 3, v = 0, any = 0;
-                while (j < len && s[j] != '}') {
-                    int h = j_hex_val(s[j]);
-                    if (h < 0) break;
-                    v = (v << 4) | h;
-                    any = 1;
-                    ++j;
-                }
-                if (any && j < len && s[j] == '}') {
-                    cp = v;
-                    adv = j - i + 1;
-                }
-            } else if (i + 6 <= len) {
-                int v = 0, ok = 1;
-                for (int k = 0; k < 4; ++k) {
-                    int h = j_hex_val(s[i + 2 + k]);
-                    if (h < 0) { ok = 0; break; }
-                    v = (v << 4) | h;
-                }
-                if (ok) {
-                    cp = v;
-                    adv = 6;
-                }
-            }
-            if (cp >= 0 && cp <= 0x10FFFF) {
+            int adv = 0;
+            int cp = j_parse_u_esc(s + i, len - i, &adv);
+            if (cp >= 0) {
                 if (o + 4 >= cap) break;
-                o += j_utf8_put(buf + o, cp);
+                o += utf8_put(buf + o, cp);
                 i += adv;
                 continue;
             }
@@ -239,25 +227,9 @@ const char* js_decode_string(const char* s, int len, char* buf, int cap, int* ou
                 break;
             }
             case 'u': {
-                if (i + 2 < blen && body[i + 2] == '{') {
-                    int k = i + 3, v = 0, any = 0;
-                    while (k < blen && body[k] != '}') {
-                        int h = j_hex_val(body[k]);
-                        if (h < 0) break;
-                        v = (v << 4) | h;
-                        any = 1;
-                        ++k;
-                    }
-                    if (any && k < blen && body[k] == '}') { cp = v; adv = k - i + 1; }
-                } else if (i + 6 <= blen) {
-                    int k, v = 0, ok = 1;
-                    for (k = 0; k < 4; ++k) {
-                        int h = j_hex_val(body[i + 2 + k]);
-                        if (h < 0) { ok = 0; break; }
-                        v = (v << 4) | h;
-                    }
-                    if (ok) { cp = v; adv = 6; }
-                }
+                int a = 0;
+                int v = j_parse_u_esc(body + i, blen - i, &a);
+                if (v >= 0) { cp = v; adv = a; }
                 break;
             }
             case '\r':                     /* 行继续：不产出字符 */
@@ -275,7 +247,7 @@ const char* js_decode_string(const char* s, int len, char* buf, int cap, int* ou
         if (skip) { i += adv; continue; }
         if (cp >= 0 && cp <= 0x10FFFF) {
             if (o + 4 >= cap) break;
-            o += j_utf8_put(buf + o, cp);
+            o += utf8_put(buf + o, cp);
         } else {                           /* 认不出的转义：原样保留 */
             if (o + 2 >= cap) break;
             buf[o++] = body[i];

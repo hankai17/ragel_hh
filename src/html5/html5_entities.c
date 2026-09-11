@@ -10,28 +10,7 @@
 #include <stddef.h>
 
 #include "html5_entities.h"
-
-/* 码点 -> UTF-8，写入 out（需 4 字节空间），返回写入字节数 */
-static int utf8_put(char* out, int cp) {
-    if (cp < 0x80) {
-        out[0] = (char)cp;
-        return 1;
-    } else if (cp < 0x800) {
-        out[0] = (char)(0xC0 | (cp >> 6));
-        out[1] = (char)(0x80 | (cp & 0x3F));
-        return 2;
-    } else if (cp < 0x10000) {
-        out[0] = (char)(0xE0 | (cp >> 12));
-        out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
-        out[2] = (char)(0x80 | (cp & 0x3F));
-        return 3;
-    }
-    out[0] = (char)(0xF0 | (cp >> 18));
-    out[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
-    out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
-    out[3] = (char)(0x80 | (cp & 0x3F));
-    return 4;
-}
+#include "utf8.h"
 
 /* s[0..len) 以 &# 开头时解析数字实体（十进制 / 十六进制，分号可选）；
  * 成功返回码点并令 *adv = 消耗字节数，否则返回 -1 */

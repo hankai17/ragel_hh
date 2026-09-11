@@ -22,6 +22,7 @@ set(SQL_DIR   ${PROJECT_SOURCE_DIR}/src/sql)
 set(LOG4J_DIR ${PROJECT_SOURCE_DIR}/src/log4j)
 set(HTML5_DIR ${PROJECT_SOURCE_DIR}/src/html5)
 set(JS_DIR    ${PROJECT_SOURCE_DIR}/src/js)
+set(UTIL_DIR  ${PROJECT_SOURCE_DIR}/src/util)
 set(HTML5_XSS_DIR ${PROJECT_SOURCE_DIR}/rules/html5_xss)
 set(SQLI_DIR      ${PROJECT_SOURCE_DIR}/rules/sqli)
 set(GEN_DIR   ${CMAKE_BINARY_DIR}/ragel/gen)
@@ -76,7 +77,7 @@ add_custom_command(
 add_custom_command(
     OUTPUT ${GEN_DIR}/js_tokens.c
     COMMAND ${RAGEL} -C -o ${GEN_DIR}/js_tokens.c ${JS_DIR}/js_tokens.rl
-    DEPENDS ${JS_DIR}/js_tokens.rl ${JS_DIR}/js_tokens.h
+    DEPENDS ${JS_DIR}/js_tokens.rl ${JS_DIR}/js_tokens.h ${UTIL_DIR}/utf8.h
     COMMENT "ragel: js_tokens.c"
     VERBATIM
 )
@@ -102,9 +103,10 @@ add_library(ragel_sql STATIC
     ${GEN_DIR}/js_tokens.c
     ${GEN_DIR}/js_syntax.c
     ${JS_DIR}/js_danger.c
+    ${UTIL_DIR}/utf8.c
 )
 target_include_directories(ragel_sql
-    PUBLIC ${SQL_DIR} ${LOG4J_DIR} ${HTML5_DIR} ${JS_DIR}
+    PUBLIC ${SQL_DIR} ${LOG4J_DIR} ${HTML5_DIR} ${JS_DIR} ${UTIL_DIR}
            ${HTML5_XSS_DIR} ${SQLI_DIR}
     PRIVATE ${GEN_DIR}
 )
