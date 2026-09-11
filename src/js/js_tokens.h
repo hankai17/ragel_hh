@@ -52,4 +52,18 @@ int lex_js(const char* data, size_t len, JsTok* out, int cap);
 /* token 类型名（调试用） */
 const char* js_tok_name(JsTokType t);
 
+/* 还原标识符里的 Unicode 转义（ES5/ES6 的 \uXXXX 与 \u{XXXXXX}）：
+ * \u0061lert -> alert、\u0076ar -> var。浏览器先还原再当标识符用，
+ * 所以关键字识别与危险名比对都要先过这一步。
+ * 无转义时直接返回 s（不拷贝）；有转义时写入 buf（cap 字节）并返回 buf；
+ * *out_len 为还原后的字节长度。调用方需保证 buf 不短于 len + 1。 */
+const char* js_decode_ident(const char* s, int len, char* buf, int cap, int* out_len);
+
+/* 还原 JS 字符串字面量（J_STRING token，含首尾引号）里的转义，
+ * 输出不含引号的内容："\u0065val" -> eval、"a\\tb" -> a<TAB>b。
+ * 覆盖 \uXXXX / \u{XXXXXX} / \xXX / \n \r \t \b \f \v \0 / 行继续 / \\ \' \" \/。
+ * 无转义时直接返回内容区指针（不拷贝）；有转义时写入 buf 并返回 buf；
+ * *out_len 为还原后的字节长度。 */
+const char* js_decode_string(const char* s, int len, char* buf, int cap, int* out_len);
+
 #endif /* JS_TOKENS_H */

@@ -98,6 +98,16 @@ check '<a href="javascript&colon;alert(1)">'         dangerous_js
 check '<a href="jav&#x09;ascript:alert(1)">'         dangerous_js
 check '<IMG SRC= " &#14; javascript:alert("XSS");">' dangerous_js
 check '<<SCRIPT>alert("XSS");//\<</SCRIPT>'         dangerous_js
+# 标识符 Unicode 转义（ES5/ES6 允许）：\u0061lert 还原后就是 alert
+check '<img src=x onerror="\u0061lert(1)">'         dangerous_js
+check '<img src=x onerror="\u{61}lert(1)">'         dangerous_js
+check '<img src=x onerror="document.\u0063ookie">'  dangerous_js
+# 反例：\x61 不是合法的标识符转义（JS 会 SyntaxError），不该按危险 JS 判
+check '<img src="\x61lert(1)">'                      NONE
+# 字符串字面量转义：a["\u0065val"] 与 a["eval"] 等价
+check '<img src=x onerror="a[&quot;\u0065val&quot;](&quot;alert(1)&quot;)">' dangerous_js
+check '<img src=x onerror="a[&quot;\x65val&quot;](&quot;alert(1)&quot;)">'  dangerous_js
+check '<img src=x onerror="a[&quot;constr\u0075ctor&quot;](&quot;alert(1)&quot;)">' dangerous_js
 
 # ---- 负样本：不应命中（精细化，不误报）----
 check '<div>hello</div>'                             NONE

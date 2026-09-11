@@ -53,10 +53,15 @@ static int ci_in_list(const char* s, int len) {
     return 0;
 }
 
-/* 字符串内容（跳过首尾引号）是否是危险名 */
+/* 字符串内容（跳过首尾引号）是否是危险名。
+ * 比对前先还原 JS 字符串转义：a["\u0065val"] 与 a["eval"] 等价。 */
 static int dangerous_str(const char* s, int len) {
+    char buf[128];
+    int dlen;
+    const char* d;
     if (len < 2) return 0;
-    return ci_in_list(s + 1, len - 2);
+    d = js_decode_string(s, len, buf, (int)sizeof(buf), &dlen);
+    return ci_in_list(d, dlen);
 }
 
 int js_is_dangerous(const char* code, int len) {
@@ -64,14 +69,22 @@ int js_is_dangerous(const char* code, int len) {
     int n = lex_js(code, (size_t)len, toks, 256);
 
     for (int i = 0; i < n; ++i) {
-        /* 第一阶段：危险标识符 + 调用/成员访问上下文 */
-        if (toks[i].type == J_IDENT && ci_in_list(toks[i].s, toks[i].len)) {
-            if (i + 1 < n && (toks[i + 1].type == J_LPAREN ||
-                              toks[i + 1].type == J_DOT ||
-                              toks[i + 1].type == J_LBRACK))
-                return 1;
-            if (i > 0 && toks[i - 1].type == J_DOT)
-                return 1;
+        /* 第一阶段：危险标识符 + 调用/成员访问上下文
+         * 比对前先还原标识符里的 \u 转义：\u0061lert(1) 与 alert(1) 等价，
+         * 不还原的话浏览器会执行、我们却看不见。 */
+        if (toks[i].type == J_IDENT) {
+            char ibuf[128];
+            int ilen;
+            const char* nm = js_decode_ident(toks[i].s, toks[i].len, ibuf,
+                                             (int)sizeof(ibuf), &ilen);
+            if (ci_in_list(nm, ilen)) {
+                if (i + 1 < n && (toks[i + 1].type == J_LPAREN ||
+                                  toks[i + 1].type == J_DOT ||
+                                  toks[i + 1].type == J_LBRACK))
+                    return 1;
+                if (i > 0 && toks[i - 1].type == J_DOT)
+                    return 1;
+            }
         }
         /* 第二阶段：字符串属性访问 ["dangerous"] */
         if (toks[i].type == J_LBRACK && i + 2 < n &&
