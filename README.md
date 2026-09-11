@@ -69,7 +69,7 @@ cmake --build build --target validate_ragel
 ```
 src/            底座：切词 + 语法骨架，各模块共用
   sql/          SQL 的切词、语法骨架
-  html5/        HTML 的切词
+  html5/        HTML 的切词 + 字符实体解码（属性值归一化）
   js/           JS 的切词、语法骨架、危险调用检测
   log4j/        log4j 的切词
 rules/          规则：真正判"是不是攻击"的地方

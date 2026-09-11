@@ -34,7 +34,7 @@ INC := -I$(SRC_SQL) -I$(SRC_LOG4J) -I$(SRC_HTML5) -I$(SRC_JS) \
 
 OBJS := $(GEN)/sql_tokens.o $(GEN)/sql_syntax.o $(GEN)/sqli_rules.o \
         $(GEN)/log4j_lookup.o \
-        $(GEN)/html5_tokens.o $(GEN)/html5_xss_rules.o \
+        $(GEN)/html5_tokens.o $(GEN)/html5_entities.o $(GEN)/html5_xss_rules.o \
         $(GEN)/js_tokens.o $(GEN)/js_syntax.o $(GEN)/js_danger.o
 LIB  := $(BIN)/libragel_sql.a
 
@@ -61,8 +61,12 @@ $(GEN)/html5_tokens.c: $(SRC_HTML5)/html5_tokens.rl $(SRC_HTML5)/html5_tokens.h 
 	$(RAGEL) -C -o $@ $<
 
 # html5_xss_rules.rl 与 html5_shared.rl 不同目录，需显式 -I
-$(GEN)/html5_xss_rules.c: $(RULES_HTML5_XSS)/html5_xss_rules.rl $(RULES_HTML5_XSS)/html5_xss_rules.h $(SRC_HTML5)/html5_shared.rl | $(GEN)
+$(GEN)/html5_xss_rules.c: $(RULES_HTML5_XSS)/html5_xss_rules.rl $(RULES_HTML5_XSS)/html5_xss_rules.h $(SRC_HTML5)/html5_shared.rl $(SRC_HTML5)/html5_entities.h | $(GEN)
 	$(RAGEL) -C -I$(SRC_HTML5) -o $@ $<
+
+# html5_entities.c 是手写 C（非 ragel 生成），单独编译
+$(GEN)/html5_entities.o: $(SRC_HTML5)/html5_entities.c $(SRC_HTML5)/html5_entities.h | $(GEN)
+	$(CC) $(CFLAGS) $(INC) -c -o $@ $(SRC_HTML5)/html5_entities.c
 
 $(GEN)/js_tokens.c: $(SRC_JS)/js_tokens.rl $(SRC_JS)/js_tokens.h | $(GEN)
 	$(RAGEL) -C -o $@ $<

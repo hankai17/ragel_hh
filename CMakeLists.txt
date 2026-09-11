@@ -69,7 +69,7 @@ add_custom_command(
 add_custom_command(
     OUTPUT ${GEN_DIR}/html5_xss_rules.c
     COMMAND ${RAGEL} -C -I${HTML5_DIR} -o ${GEN_DIR}/html5_xss_rules.c ${HTML5_XSS_DIR}/html5_xss_rules.rl
-    DEPENDS ${HTML5_XSS_DIR}/html5_xss_rules.rl ${HTML5_XSS_DIR}/html5_xss_rules.h ${HTML5_DIR}/html5_shared.rl
+    DEPENDS ${HTML5_XSS_DIR}/html5_xss_rules.rl ${HTML5_XSS_DIR}/html5_xss_rules.h ${HTML5_DIR}/html5_shared.rl ${HTML5_DIR}/html5_entities.h
     COMMENT "ragel: html5_xss_rules.c"
     VERBATIM
 )
@@ -97,6 +97,7 @@ add_library(ragel_sql STATIC
     ${GEN_DIR}/sqli_rules.c
     ${GEN_DIR}/log4j_lookup.c
     ${GEN_DIR}/html5_tokens.c
+    ${HTML5_DIR}/html5_entities.c
     ${GEN_DIR}/html5_xss_rules.c
     ${GEN_DIR}/js_tokens.c
     ${GEN_DIR}/js_syntax.c
