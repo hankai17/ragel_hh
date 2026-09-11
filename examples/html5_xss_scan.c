@@ -64,7 +64,8 @@ static void scan_one(const char* data) {
     printf("input: %s\n", data);
     printf("tokens(%d):", n);
     for (int i = 0; i < n; ++i) {
-        printf(" %s", h5_tok_name(tk[i].type));
+        printf(" %s(%.*s)", h5_tok_name(tk[i].type), 
+                tk[i].len, tk[i].s);
     }
     printf("\n");
 

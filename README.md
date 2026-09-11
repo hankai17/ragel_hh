@@ -50,10 +50,10 @@ make test      # 跑测试
 # 绕过样本：注释、编码、拆词拼接
 ./build/ragel/sqli_scan        '1=1/**/OR/**/1=2'
 ./build/ragel/log4j_scan       '${jn${lower:d}i:ldap://x/a}'
-./build/ragel/html5_xss_scan   '<img src=x onerror="&#97;lert(1)">'
+./build/ragel/html5_xss_scan   '<img src=x onerror="al&#101;rt(1)">'
 ```
 
-最后一组考验的是"能不能看懂内容"：SQL 里 `/**/` 是注释要跳过去、`&#97;` 就是字母 `a`、`${lower:d}` 归约成 `d`。只照着字符串硬比对的话，这三条都拦不住。
+最后一组考验的是"能不能看懂内容"：SQL 里 `/**/` 是注释要跳过去、`&#101;` 解出来就是字母 `e`（`al` + `e` + `rt` 拼回 `alert`）、`${lower:d}` 归约成 `d`。只照着字符串硬比对的话，这三条都拦不住。
 
 输出会先打印切出来的词，再打印命中的规则：`sqli_scan` 和 `html5_xss_scan` 的行首是 `!!`，`log4j_scan` 是 `[JNDI]` 这样的分类标签。`make test` 输出的是 `[PASS]` / `[FAIL]` 加最后一行总结。
 
