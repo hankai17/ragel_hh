@@ -23,6 +23,7 @@
 #include <ctype.h>
 #include <string.h>
 
+#include "cistr.h"
 #include "html5_tokens.h"
 
 static H5Tok* h5_out;
@@ -66,23 +67,6 @@ const char* h5_tok_name(H5TokType t) {
         case H5_PLAINTEXT_TEXT:     return "PLAINTEXT_TEXT";
         default:                    return "?";
     }
-}
-
-/* 大小写不敏感完整匹配（忽略 null） */
-static int ci_eq(const char* s, int len, const char* pat) {
-    for (int i = 0; i < len; ++i) {
-        if (pat[i] == '\0') return 0;
-        if (tolower((unsigned char)s[i]) != tolower((unsigned char)pat[i])) return 0;
-    }
-    return pat[len] == '\0';
-}
-
-/* 固定长度大小写不敏感比较（pat 不要求 '\0' 结尾，用于输入缓冲区内的标签名） */
-static int ci_eq_len(const char* s, const char* pat, int len) {
-    for (int i = 0; i < len; ++i) {
-        if (tolower((unsigned char)s[i]) != tolower((unsigned char)pat[i])) return 0;
-    }
-    return 1;
 }
 
 /* 标签名 -> 文本内容类别：0 普通 / 1 RCDATA / 2 RAWTEXT / 3 SCRIPT / 4 PLAINTEXT */
@@ -276,7 +260,7 @@ static int enter_text_or_data(void) {
                 const char* lt = (const char*)memchr(q, '<', (size_t)(pe - q));
                 if (!lt) break;
                 if (lt + 2 + text_end_len <= pe && lt[1] == '/' &&
-                    ci_eq_len(lt + 2, text_end_tag, text_end_len)) {
+                    ci_eq_n(lt + 2, text_end_len, text_end_tag)) {
                     end = lt;
                     break;
                 }

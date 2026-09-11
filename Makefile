@@ -18,6 +18,7 @@ SRC_LOG4J := $(SRC)/log4j
 SRC_HTML5 := $(SRC)/html5
 SRC_JS    := $(SRC)/js
 SRC_UTIL  := $(SRC)/util
+UTIL_HDRS := $(SRC_UTIL)/utf8.h $(SRC_UTIL)/cistr.h
 
 RULES_HTML5_XSS := $(RULES)/html5_xss
 RULES_SQLI      := $(RULES)/sqli
@@ -37,7 +38,7 @@ OBJS := $(GEN)/sql_tokens.o $(GEN)/sql_syntax.o $(GEN)/sqli_rules.o \
         $(GEN)/log4j_lookup.o \
         $(GEN)/html5_tokens.o $(GEN)/html5_entities.o $(GEN)/html5_xss_rules.o \
         $(GEN)/js_tokens.o $(GEN)/js_syntax.o $(GEN)/js_danger.o \
-        $(GEN)/utf8.o
+        $(GEN)/utf8.o $(GEN)/cistr.o
 LIB  := $(BIN)/libragel_sql.a
 
 all: $(BIN)/sql_scan $(BIN)/sqli_scan $(BIN)/log4j_scan $(BIN)/html5_xss_scan $(BIN)/js_scan
@@ -49,39 +50,42 @@ $(GEN):
 $(GEN)/sql_tokens.c: $(SRC_SQL)/sql_tokens.rl $(SRC_SQL)/sql_tokens.h | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
-$(GEN)/sql_syntax.c: $(SRC_SQL)/sql_syntax.rl $(SRC_SQL)/sql_tokens.h $(SRC_SQL)/sql_shared.rl | $(GEN)
+$(GEN)/sql_syntax.c: $(SRC_SQL)/sql_syntax.rl $(SRC_SQL)/sql_tokens.h $(SRC_SQL)/sql_shared.rl $(UTIL_HDRS) | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
 # sqli_rules.rl 与 sql_shared.rl 不同目录，需显式 -I
 $(GEN)/sqli_rules.c: $(RULES_SQLI)/sqli_rules.rl $(RULES_SQLI)/sqli_rules.h $(SRC_SQL)/sql_shared.rl | $(GEN)
 	$(RAGEL) -C -I$(SRC_SQL) -o $@ $<
 
-$(GEN)/log4j_lookup.c: $(SRC_LOG4J)/log4j_lookup.rl $(SRC_LOG4J)/log4j_lookup.h | $(GEN)
+$(GEN)/log4j_lookup.c: $(SRC_LOG4J)/log4j_lookup.rl $(SRC_LOG4J)/log4j_lookup.h $(UTIL_HDRS) | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
-$(GEN)/html5_tokens.c: $(SRC_HTML5)/html5_tokens.rl $(SRC_HTML5)/html5_tokens.h | $(GEN)
+$(GEN)/html5_tokens.c: $(SRC_HTML5)/html5_tokens.rl $(SRC_HTML5)/html5_tokens.h $(UTIL_HDRS) | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
 # html5_xss_rules.rl 与 html5_shared.rl 不同目录，需显式 -I
-$(GEN)/html5_xss_rules.c: $(RULES_HTML5_XSS)/html5_xss_rules.rl $(RULES_HTML5_XSS)/html5_xss_rules.h $(SRC_HTML5)/html5_shared.rl $(SRC_HTML5)/html5_entities.h | $(GEN)
+$(GEN)/html5_xss_rules.c: $(RULES_HTML5_XSS)/html5_xss_rules.rl $(RULES_HTML5_XSS)/html5_xss_rules.h $(SRC_HTML5)/html5_shared.rl $(SRC_HTML5)/html5_entities.h $(UTIL_HDRS) | $(GEN)
 	$(RAGEL) -C -I$(SRC_HTML5) -o $@ $<
 
 # html5_entities.c 是手写 C（非 ragel 生成），单独编译
-$(GEN)/html5_entities.o: $(SRC_HTML5)/html5_entities.c $(SRC_HTML5)/html5_entities.h $(SRC_UTIL)/utf8.h | $(GEN)
+$(GEN)/html5_entities.o: $(SRC_HTML5)/html5_entities.c $(SRC_HTML5)/html5_entities.h $(UTIL_HDRS) | $(GEN)
 	$(CC) $(CFLAGS) $(INC) -c -o $@ $(SRC_HTML5)/html5_entities.c
 
 # src/util/ 下的公共工具（手写 C）
-$(GEN)/utf8.o: $(SRC_UTIL)/utf8.c $(SRC_UTIL)/utf8.h | $(GEN)
+$(GEN)/utf8.o: $(SRC_UTIL)/utf8.c $(UTIL_HDRS) | $(GEN)
 	$(CC) $(CFLAGS) $(INC) -c -o $@ $(SRC_UTIL)/utf8.c
 
-$(GEN)/js_tokens.c: $(SRC_JS)/js_tokens.rl $(SRC_JS)/js_tokens.h $(SRC_UTIL)/utf8.h | $(GEN)
+$(GEN)/cistr.o: $(SRC_UTIL)/cistr.c $(UTIL_HDRS) | $(GEN)
+	$(CC) $(CFLAGS) $(INC) -c -o $@ $(SRC_UTIL)/cistr.c
+
+$(GEN)/js_tokens.c: $(SRC_JS)/js_tokens.rl $(SRC_JS)/js_tokens.h $(UTIL_HDRS) | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
 $(GEN)/js_syntax.c: $(SRC_JS)/js_syntax.rl $(SRC_JS)/js_tokens.h $(SRC_JS)/js_shared.rl | $(GEN)
 	$(RAGEL) -C -o $@ $<
 
 # js_danger.c 是手写 C（非 ragel 生成），单独编译
-$(GEN)/js_danger.o: $(SRC_JS)/js_danger.c $(SRC_JS)/js_danger.h $(SRC_JS)/js_tokens.h | $(GEN)
+$(GEN)/js_danger.o: $(SRC_JS)/js_danger.c $(SRC_JS)/js_danger.h $(SRC_JS)/js_tokens.h $(UTIL_HDRS) | $(GEN)
 	$(CC) $(CFLAGS) $(INC) -c -o $@ $(SRC_JS)/js_danger.c
 
 $(GEN)/%.o: $(GEN)/%.c

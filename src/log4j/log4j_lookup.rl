@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cistr.h"
 #include "log4j_lookup.h"
 
 /* ------------------------------------------------------------
@@ -128,19 +129,6 @@ static void resolve_value(span v, char* out, size_t* olen, size_t cap) {
     }
 }
 
-static bool contains_ci(const char* hay, const char* needle) {
-    size_t nlen = strlen(needle);
-    for (const char* h = hay; *h; ++h) {
-        size_t k = 0;
-        while (k < nlen && h[k] &&
-               tolower((unsigned char)h[k]) == tolower((unsigned char)needle[k])) {
-            k++;
-        }
-        if (k == nlen) return true;
-    }
-    return false;
-}
-
 static int count_nested(span b) {
     int n = 0;
     for (int i = 0; i < b.len; ++i) {
@@ -165,7 +153,7 @@ static bool any_nested_jndi(span b) {
             size_t ol = 0;
             pfx[0] = '\0';
             resolve_prefix(nprefix, pfx, &ol, sizeof(pfx));
-            if (contains_ci(pfx, "jndi")) return true;
+            if (ci_find(pfx, (int)strlen(pfx), "jndi") >= 0) return true;
             if (any_nested_jndi(nbody)) return true;
             i = end;
         }
@@ -209,7 +197,7 @@ static const char* classify(span b, char* detail, size_t dcap) {
     size_t ol = 0;
     pfx[0] = '\0';
     resolve_prefix(pre, pfx, &ol, sizeof(pfx));
-    if (contains_ci(pfx, "jndi") || any_nested_jndi(b)) return "JNDI";
+    if (ci_find(pfx, (int)strlen(pfx), "jndi") >= 0 || any_nested_jndi(b)) return "JNDI";
     char first[64];
     first_prefix_chunk(b, first, sizeof(first));
     if (is_sensitive(first)) {

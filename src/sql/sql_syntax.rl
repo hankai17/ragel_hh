@@ -48,6 +48,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cistr.h"
 #include "sql_tokens.h"
 
 /* fcall/fret 运行期栈大小。最深输入为纯括号串：n 个 token 最多
@@ -58,16 +59,6 @@
 /* ------------------------------------------------------------
  * 语义层：规则共享语义谓词（对齐 RuleSQL.g4 @parser::members）
  * ------------------------------------------------------------ */
-
-static int ci_eq(const char* s, int len, const char* expected) {
-    size_t elen = strlen(expected);
-    if (len != (int)elen) return 0;
-    for (size_t i = 0; i < elen; ++i) {
-        if (tolower((unsigned char)s[i]) != tolower((unsigned char)expected[i]))
-            return 0;
-    }
-    return 1;
-}
 
 /* isIdent($i, "sleep") 等价 */
 int sql_is_ident(const Token* t, const char* expected) {

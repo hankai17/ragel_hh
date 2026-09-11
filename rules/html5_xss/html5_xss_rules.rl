@@ -34,6 +34,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "cistr.h"
 #include "html5_tokens.h"
 #include "html5_entities.h"
 #include "js_danger.h"
@@ -41,24 +42,6 @@
 /* ------------------------------------------------------------
  * 语义层：黑名单数据 + 匹配谓词（C 层，供 Ragel 动作调用）
  * ------------------------------------------------------------ */
-
-/* 大小写不敏感的完整匹配：s[0..len) 与 pattern 完全相等 */
-static int ci_full_eq(const char* s, int len, const char* pattern) {
-    for (int i = 0; i < len; ++i) {
-        if (pattern[i] == '\0') return 0;
-        if (tolower((unsigned char)s[i]) != tolower((unsigned char)pattern[i])) return 0;
-    }
-    return pattern[len] == '\0';
-}
-
-/* 大小写不敏感的前缀匹配：s[0..len) 以 prefix 开头 */
-static int ci_prefix(const char* s, int len, const char* prefix) {
-    for (int i = 0; prefix[i]; ++i) {
-        if (i >= len) return 0;
-        if (tolower((unsigned char)s[i]) != tolower((unsigned char)prefix[i])) return 0;
-    }
-    return 1;
-}
 
 /* 黑标签（libinjection BLACKTAG）：本身即危险的标签 */
 static const char* BLACK_TAGS[] = {
@@ -78,7 +61,7 @@ static int is_black_tag(const char* s, int len) {
             tolower((unsigned char)s[2]) == 'l') return 1;
     }
     for (int i = 0; BLACK_TAGS[i]; ++i) {
-        if (ci_full_eq(s, len, BLACK_TAGS[i])) return 1;
+        if (ci_eq(s, len, BLACK_TAGS[i])) return 1;
     }
     return 0;
 }
@@ -93,8 +76,8 @@ static int is_black_attr(const char* s, int len) {
     if (ci_prefix(s, len, "xmlns")) return 1;
     if (ci_prefix(s, len, "xlink")) return 1;
     /* IE 专有危险属性 */
-    if (ci_full_eq(s, len, "dataformatas")) return 1;
-    if (ci_full_eq(s, len, "datasrc")) return 1;
+    if (ci_eq(s, len, "dataformatas")) return 1;
+    if (ci_eq(s, len, "datasrc")) return 1;
     return 0;
 }
 
@@ -107,14 +90,14 @@ static const char* URL_ATTRS[] = {
 
 static int is_url_attr(const char* s, int len) {
     for (int i = 0; URL_ATTRS[i]; ++i) {
-        if (ci_full_eq(s, len, URL_ATTRS[i])) return 1;
+        if (ci_eq(s, len, URL_ATTRS[i])) return 1;
     }
     return 0;
 }
 
 /* style / filter 属性（TYPE_STYLE）：值需查 CSS 注入 */
 static int is_style_attr(const char* s, int len) {
-    return ci_full_eq(s, len, "style") || ci_full_eq(s, len, "filter");
+    return ci_eq(s, len, "style") || ci_eq(s, len, "filter");
 }
 
 /* ------------------------------------------------------------
@@ -145,24 +128,11 @@ static int is_black_url(const char* s, int len) {
 }
 
 /* style 值内的 CSS 注入：expression( / javascript: / vbscript: / -moz-binding */
-static int ci_strstr(const char* hay, int haylen, const char* needle) {
-    int nlen = (int)strlen(needle);
-    if (nlen == 0) return 1;
-    for (int i = 0; i + nlen <= haylen; ++i) {
-        int j;
-        for (j = 0; j < nlen; ++j) {
-            if (tolower((unsigned char)hay[i + j]) != tolower((unsigned char)needle[j])) break;
-        }
-        if (j == nlen) return 1;
-    }
-    return 0;
-}
-
 static int is_style_value(const char* s, int len) {
-    if (ci_strstr(s, len, "expression(")) return 1;
-    if (ci_strstr(s, len, "javascript:")) return 1;
-    if (ci_strstr(s, len, "vbscript:")) return 1;
-    if (ci_strstr(s, len, "-moz-binding")) return 1;
+    if (ci_find(s, len, "expression(") >= 0) return 1;
+    if (ci_find(s, len, "javascript:") >= 0) return 1;
+    if (ci_find(s, len, "vbscript:") >= 0) return 1;
+    if (ci_find(s, len, "-moz-binding") >= 0) return 1;
     return 0;
 }
 

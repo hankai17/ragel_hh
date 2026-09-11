@@ -19,6 +19,7 @@
 #include <ctype.h>
 #include <string.h>
 
+#include "cistr.h"
 #include "js_tokens.h"
 #include "js_danger.h"
 
@@ -36,15 +37,6 @@ static const char* DANGEROUS_IDENTS[] = {
     "XMLHttpRequest", "ActiveXObject",
     NULL
 };
-
-/* 大小写不敏感的完整匹配 */
-static int ci_eq(const char* s, int len, const char* pat) {
-    if ((int)strlen(pat) != len) return 0;
-    for (int i = 0; i < len; ++i) {
-        if (tolower((unsigned char)s[i]) != tolower((unsigned char)pat[i])) return 0;
-    }
-    return 1;
-}
 
 static int ci_in_list(const char* s, int len) {
     for (int i = 0; DANGEROUS_IDENTS[i]; ++i) {

@@ -23,6 +23,7 @@ set(LOG4J_DIR ${PROJECT_SOURCE_DIR}/src/log4j)
 set(HTML5_DIR ${PROJECT_SOURCE_DIR}/src/html5)
 set(JS_DIR    ${PROJECT_SOURCE_DIR}/src/js)
 set(UTIL_DIR  ${PROJECT_SOURCE_DIR}/src/util)
+set(UTIL_HDRS ${UTIL_DIR}/utf8.h ${UTIL_DIR}/cistr.h)
 set(HTML5_XSS_DIR ${PROJECT_SOURCE_DIR}/rules/html5_xss)
 set(SQLI_DIR      ${PROJECT_SOURCE_DIR}/rules/sqli)
 set(GEN_DIR   ${CMAKE_BINARY_DIR}/ragel/gen)
@@ -42,7 +43,7 @@ add_custom_command(
 add_custom_command(
     OUTPUT ${GEN_DIR}/sql_syntax.c
     COMMAND ${RAGEL} -C -o ${GEN_DIR}/sql_syntax.c ${SQL_DIR}/sql_syntax.rl
-    DEPENDS ${SQL_DIR}/sql_syntax.rl ${SQL_DIR}/sql_tokens.h ${SQL_DIR}/sql_shared.rl
+    DEPENDS ${SQL_DIR}/sql_syntax.rl ${SQL_DIR}/sql_tokens.h ${SQL_DIR}/sql_shared.rl ${UTIL_HDRS}
     COMMENT "ragel: sql_syntax.c"
     VERBATIM
 )
@@ -56,28 +57,28 @@ add_custom_command(
 add_custom_command(
     OUTPUT ${GEN_DIR}/log4j_lookup.c
     COMMAND ${RAGEL} -C -o ${GEN_DIR}/log4j_lookup.c ${LOG4J_DIR}/log4j_lookup.rl
-    DEPENDS ${LOG4J_DIR}/log4j_lookup.rl ${LOG4J_DIR}/log4j_lookup.h
+    DEPENDS ${LOG4J_DIR}/log4j_lookup.rl ${LOG4J_DIR}/log4j_lookup.h ${UTIL_HDRS}
     COMMENT "ragel: log4j_lookup.c"
     VERBATIM
 )
 add_custom_command(
     OUTPUT ${GEN_DIR}/html5_tokens.c
     COMMAND ${RAGEL} -C -o ${GEN_DIR}/html5_tokens.c ${HTML5_DIR}/html5_tokens.rl
-    DEPENDS ${HTML5_DIR}/html5_tokens.rl ${HTML5_DIR}/html5_tokens.h
+    DEPENDS ${HTML5_DIR}/html5_tokens.rl ${HTML5_DIR}/html5_tokens.h ${UTIL_HDRS}
     COMMENT "ragel: html5_tokens.c"
     VERBATIM
 )
 add_custom_command(
     OUTPUT ${GEN_DIR}/html5_xss_rules.c
     COMMAND ${RAGEL} -C -I${HTML5_DIR} -o ${GEN_DIR}/html5_xss_rules.c ${HTML5_XSS_DIR}/html5_xss_rules.rl
-    DEPENDS ${HTML5_XSS_DIR}/html5_xss_rules.rl ${HTML5_XSS_DIR}/html5_xss_rules.h ${HTML5_DIR}/html5_shared.rl ${HTML5_DIR}/html5_entities.h
+    DEPENDS ${HTML5_XSS_DIR}/html5_xss_rules.rl ${HTML5_XSS_DIR}/html5_xss_rules.h ${HTML5_DIR}/html5_shared.rl ${HTML5_DIR}/html5_entities.h ${UTIL_HDRS}
     COMMENT "ragel: html5_xss_rules.c"
     VERBATIM
 )
 add_custom_command(
     OUTPUT ${GEN_DIR}/js_tokens.c
     COMMAND ${RAGEL} -C -o ${GEN_DIR}/js_tokens.c ${JS_DIR}/js_tokens.rl
-    DEPENDS ${JS_DIR}/js_tokens.rl ${JS_DIR}/js_tokens.h ${UTIL_DIR}/utf8.h
+    DEPENDS ${JS_DIR}/js_tokens.rl ${JS_DIR}/js_tokens.h ${UTIL_HDRS}
     COMMENT "ragel: js_tokens.c"
     VERBATIM
 )
@@ -104,6 +105,7 @@ add_library(ragel_sql STATIC
     ${GEN_DIR}/js_syntax.c
     ${JS_DIR}/js_danger.c
     ${UTIL_DIR}/utf8.c
+    ${UTIL_DIR}/cistr.c
 )
 target_include_directories(ragel_sql
     PUBLIC ${SQL_DIR} ${LOG4J_DIR} ${HTML5_DIR} ${JS_DIR} ${UTIL_DIR}
