@@ -18,7 +18,7 @@ SRC_LOG4J := $(SRC)/log4j
 SRC_HTML5 := $(SRC)/html5
 SRC_JS    := $(SRC)/js
 SRC_UTIL  := $(SRC)/util
-UTIL_HDRS := $(SRC_UTIL)/utf8.h $(SRC_UTIL)/cistr.h
+UTIL_HDRS := $(SRC_UTIL)/utf8.h $(SRC_UTIL)/cistr.h $(SRC_UTIL)/esc.h
 
 RULES_HTML5_XSS := $(RULES)/html5_xss
 RULES_SQLI      := $(RULES)/sqli
@@ -38,7 +38,7 @@ OBJS := $(GEN)/sql_tokens.o $(GEN)/sql_syntax.o $(GEN)/sqli_rules.o \
         $(GEN)/log4j_lookup.o \
         $(GEN)/html5_tokens.o $(GEN)/html5_entities.o $(GEN)/html5_xss_rules.o \
         $(GEN)/js_tokens.o $(GEN)/js_syntax.o $(GEN)/js_danger.o \
-        $(GEN)/utf8.o $(GEN)/cistr.o
+        $(GEN)/utf8.o $(GEN)/cistr.o $(GEN)/esc.o
 LIB  := $(BIN)/libragel_sql.a
 
 all: $(BIN)/sql_scan $(BIN)/sqli_scan $(BIN)/log4j_scan $(BIN)/html5_xss_scan $(BIN)/js_scan
@@ -77,6 +77,9 @@ $(GEN)/utf8.o: $(SRC_UTIL)/utf8.c $(UTIL_HDRS) | $(GEN)
 
 $(GEN)/cistr.o: $(SRC_UTIL)/cistr.c $(UTIL_HDRS) | $(GEN)
 	$(CC) $(CFLAGS) $(INC) -c -o $@ $(SRC_UTIL)/cistr.c
+
+$(GEN)/esc.o: $(SRC_UTIL)/esc.c $(UTIL_HDRS) | $(GEN)
+	$(CC) $(CFLAGS) $(INC) -c -o $@ $(SRC_UTIL)/esc.c
 
 $(GEN)/js_tokens.c: $(SRC_JS)/js_tokens.rl $(SRC_JS)/js_tokens.h $(UTIL_HDRS) | $(GEN)
 	$(RAGEL) -C -o $@ $<

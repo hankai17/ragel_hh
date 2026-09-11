@@ -72,7 +72,7 @@ src/            底座：切词 + 语法骨架，各模块共用
   html5/        HTML 的切词 + 字符实体解码（属性值归一化）
   js/           JS 的切词、语法骨架、危险调用检测
   log4j/        log4j 的切词
-  util/         跨模块小工具（UTF-8 编码、大小写不敏感比较）
+  util/         跨模块小工具（UTF-8 编码、大小写不敏感比较、\u 转义解析）
 rules/          规则：真正判"是不是攻击"的地方
   html5_xss/    XSS 规则，corpus/xss.log 是攒的样本
   sqli/         SQL 注入规则

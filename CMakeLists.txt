@@ -23,7 +23,7 @@ set(LOG4J_DIR ${PROJECT_SOURCE_DIR}/src/log4j)
 set(HTML5_DIR ${PROJECT_SOURCE_DIR}/src/html5)
 set(JS_DIR    ${PROJECT_SOURCE_DIR}/src/js)
 set(UTIL_DIR  ${PROJECT_SOURCE_DIR}/src/util)
-set(UTIL_HDRS ${UTIL_DIR}/utf8.h ${UTIL_DIR}/cistr.h)
+set(UTIL_HDRS ${UTIL_DIR}/utf8.h ${UTIL_DIR}/cistr.h ${UTIL_DIR}/esc.h)
 set(HTML5_XSS_DIR ${PROJECT_SOURCE_DIR}/rules/html5_xss)
 set(SQLI_DIR      ${PROJECT_SOURCE_DIR}/rules/sqli)
 set(GEN_DIR   ${CMAKE_BINARY_DIR}/ragel/gen)
@@ -106,6 +106,7 @@ add_library(ragel_sql STATIC
     ${JS_DIR}/js_danger.c
     ${UTIL_DIR}/utf8.c
     ${UTIL_DIR}/cistr.c
+    ${UTIL_DIR}/esc.c
 )
 target_include_directories(ragel_sql
     PUBLIC ${SQL_DIR} ${LOG4J_DIR} ${HTML5_DIR} ${JS_DIR} ${UTIL_DIR}

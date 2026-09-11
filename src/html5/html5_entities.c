@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <stddef.h>
 
+#include "esc.h"
 #include "html5_entities.h"
 #include "utf8.h"
 
@@ -19,12 +20,9 @@ static int decode_num_entity(const char* s, int len, int* adv) {
     int i = 2, hex = 0, cp = 0, any = 0;
     if (i < len && (s[i] == 'x' || s[i] == 'X')) { hex = 1; ++i; }
     while (i < len) {
-        int d;
-        char c = s[i];
-        if (c >= '0' && c <= '9') d = c - '0';
-        else if (hex && c >= 'a' && c <= 'f') d = c - 'a' + 10;
-        else if (hex && c >= 'A' && c <= 'F') d = c - 'A' + 10;
-        else break;
+        int d = hex ? hex_val(s[i])
+                    : (s[i] >= '0' && s[i] <= '9' ? s[i] - '0' : -1);
+        if (d < 0) break;
         cp = cp * (hex ? 16 : 10) + d;
         if (cp > 0x10FFFF) cp = 0xFFFD;
         any = 1; ++i;

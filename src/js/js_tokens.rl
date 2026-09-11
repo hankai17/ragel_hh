@@ -12,6 +12,7 @@
 
 #include <string.h>
 
+#include "esc.h"
 #include "js_tokens.h"
 #include "utf8.h"
 
@@ -101,48 +102,10 @@ const char* js_tok_name(JsTokType t) {
  * 浏览器先把转义还原再当标识符用，所以关键字/危险名比对前也必须还原，
  * 否则 onerror="\u0061lert(1)" 这类写法能绕过语义分析。
  * ------------------------------------------------------------ */
-static int j_hex_val(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
-}
-
-/* 解析 \uXXXX 或 \u{XXXXXX} 形式的转义（p 指向反斜杠）。
- * 成功返回码点并令 *adv = 消耗字节数；不是合法转义返回 -1。
- * 标识符与字符串字面量的还原共用这一份。 */
-static int j_parse_u_esc(const char* p, int len, int* adv) {
-    int cp = -1, a = 0;
-
-    if (len < 2 || p[0] != '\\' || p[1] != 'u') return -1;
-
-    if (len > 2 && p[2] == '{') {          /* \u{XXXXXX}：花括号内任意位 */
-        int j = 3, v = 0, any = 0;
-        while (j < len && p[j] != '}') {
-            int h = j_hex_val(p[j]);
-            if (h < 0) break;
-            v = (v << 4) | h;
-            any = 1;
-            ++j;
-        }
-        if (any && j < len && p[j] == '}') { cp = v; a = j + 1; }
-    } else if (len >= 6) {                 /* \uXXXX：固定 4 位 */
-        int k, v = 0, ok = 1;
-        for (k = 0; k < 4; ++k) {
-            int h = j_hex_val(p[2 + k]);
-            if (h < 0) { ok = 0; break; }
-            v = (v << 4) | h;
-        }
-        if (ok) { cp = v; a = 6; }
-    }
-
-    if (cp < 0 || cp > 0x10FFFF) return -1;
-    *adv = a;
-    return cp;
-}
-
 /* 还原标识符里的 \u 转义。无转义时直接返回 s（不拷贝）；有转义时写入
- * buf（cap 字节）并返回 buf。*out_len 为还原后的字节长度。 */
+ * buf（cap 字节）并返回 buf。*out_len 为还原后的字节长度。
+ * \uXXXX / \u{...} 的解析本身是通用的，在 src/util/esc.c；这里只负责
+ * "标识符里允许这种转义"这条 JS 规则。 */
 const char* js_decode_ident(const char* s, int len, char* buf, int cap, int* out_len) {
     int i, o = 0;
 
@@ -157,7 +120,7 @@ const char* js_decode_ident(const char* s, int len, char* buf, int cap, int* out
     for (i = 0; i < len; ) {
         if (s[i] == '\\' && i + 1 < len && s[i + 1] == 'u') {
             int adv = 0;
-            int cp = j_parse_u_esc(s + i, len - i, &adv);
+            int cp = u_esc_parse(s + i, len - i, &adv);
             if (cp >= 0) {
                 if (o + 4 >= cap) break;
                 o += utf8_put(buf + o, cp);
@@ -220,15 +183,15 @@ const char* js_decode_string(const char* s, int len, char* buf, int cap, int* ou
             case '0': cp = 0x00; break;
             case 'x': {
                 if (i + 4 <= blen) {
-                    int h1 = j_hex_val(body[i + 2]);
-                    int h2 = j_hex_val(body[i + 3]);
+                    int h1 = hex_val(body[i + 2]);
+                    int h2 = hex_val(body[i + 3]);
                     if (h1 >= 0 && h2 >= 0) { cp = (h1 << 4) | h2; adv = 4; }
                 }
                 break;
             }
             case 'u': {
                 int a = 0;
-                int v = j_parse_u_esc(body + i, blen - i, &a);
+                int v = u_esc_parse(body + i, blen - i, &a);
                 if (v >= 0) { cp = v; adv = a; }
                 break;
             }
