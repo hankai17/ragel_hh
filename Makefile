@@ -5,7 +5,7 @@
 #   src/{sql,log4j,html5,js}/   词法层 + 共享片段 + 语法骨架（基础设施）
 #   rules/{html5_xss,sqli}/     检测规则库（规则 .rl + 头文件 + 语料）
 #
-#   驱动：sql_scan（主目录）+ examples/{sqli,log4j,html5_xss,js}_scan
+#   驱动与断言统一放 examples/：{sql,sqli,log4j,html5_xss,js}_scan + test_*.sh
 #   make test 跑五套断言（sql 骨架 / sqli / log4j / html5_xss / js）
 # 产物统一放 build/ragel/，与 CMake 路径一致。
 
@@ -81,8 +81,8 @@ $(LIB): $(OBJS)
 	$(AR) rcs $@ $(OBJS)
 
 # ---- 驱动 ----
-$(BIN)/sql_scan: sql_scan.c $(LIB)
-	$(CC) $(CFLAGS) -I$(SRC_SQL) -o $@ sql_scan.c $(LIB)
+$(BIN)/sql_scan: examples/sql_scan.c $(LIB)
+	$(CC) $(CFLAGS) -I$(SRC_SQL) -o $@ examples/sql_scan.c $(LIB)
 
 $(BIN)/sqli_scan: examples/sqli_scan.c $(LIB)
 	$(CC) $(CFLAGS) -I$(SRC_SQL) -I$(RULES_SQLI) -o $@ examples/sqli_scan.c $(LIB)
@@ -97,7 +97,7 @@ $(BIN)/js_scan: examples/js_scan.c $(LIB)
 	$(CC) $(CFLAGS) -I$(SRC_JS) -o $@ examples/js_scan.c $(LIB)
 
 test: all
-	./test.sh $(BIN)/sql_scan
+	./examples/test_sql.sh $(BIN)/sql_scan
 	./examples/test_sqli.sh $(BIN)/sqli_scan
 	./examples/test_log4j.sh $(BIN)/log4j_scan
 	./examples/test_html5_xss.sh $(BIN)/html5_xss_scan

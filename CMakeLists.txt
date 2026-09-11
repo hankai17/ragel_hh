@@ -5,8 +5,8 @@ project(sql_ragel LANGUAGES C)
 #   src/{sql,log4j,html5,js}/   词法层 + 共享片段 + 语法骨架（基础设施）
 #   rules/{html5_xss,sqli}/     检测规则库（规则 .rl + 头文件 + 语料）
 # 顶层构建：.rl --ragel--> C 状态机 -> libragel_sql.a
-# 驱动：sql_scan + examples/{sqli,log4j,html5_xss,js}_scan
-# 验证：test.sh + examples/test_{sqli,log4j,html5_xss,js}.sh
+# 驱动与断言统一放 examples/：{sql,sqli,log4j,html5_xss,js}_scan + test_*.sh
+# 验证：examples/test_{sql,sqli,log4j,html5_xss,js}.sh
 #
 #   cmake -S . -B build && cmake --build build -j
 #   cmake --build build --target validate_ragel
@@ -114,7 +114,7 @@ set_target_properties(ragel_sql PROPERTIES
 # ------------------------------------------------------------
 # 3. 驱动
 # ------------------------------------------------------------
-add_executable(sql_scan sql_scan.c)
+add_executable(sql_scan ${PROJECT_SOURCE_DIR}/examples/sql_scan.c)
 target_include_directories(sql_scan PRIVATE ${SQL_DIR})
 target_link_libraries(sql_scan PRIVATE ragel_sql)
 set_target_properties(sql_scan PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
@@ -143,7 +143,7 @@ set_target_properties(js_scan PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
 # 4. 测试
 # ------------------------------------------------------------
 add_custom_target(validate_ragel
-    COMMAND ${PROJECT_SOURCE_DIR}/test.sh $<TARGET_FILE:sql_scan>
+    COMMAND ${PROJECT_SOURCE_DIR}/examples/test_sql.sh $<TARGET_FILE:sql_scan>
     COMMAND ${PROJECT_SOURCE_DIR}/examples/test_sqli.sh $<TARGET_FILE:sqli_scan>
     COMMAND ${PROJECT_SOURCE_DIR}/examples/test_log4j.sh $<TARGET_FILE:log4j_scan>
     COMMAND ${PROJECT_SOURCE_DIR}/examples/test_html5_xss.sh $<TARGET_FILE:html5_xss_scan>

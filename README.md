@@ -21,21 +21,19 @@ src/                 基础设施：词法层 + 共享片段 + 语法骨架
 rules/               检测规则库
   html5_xss/         XSS 规则（html5_xss_rules + corpus/xss.log）
   sqli/              SQLi 攻击规则（sqli_rules）
-sql_scan.c           驱动：打印 token 流和骨架命中
-examples/            调用示例
+examples/            调用示例（驱动 + 断言）
+  sql_scan.c         sql 驱动：打印 token 流和骨架命中
   sqli_scan.c        sqli 驱动
   log4j_scan.c       log4j 驱动
   html5_xss_scan.c   html5_xss 驱动
   js_scan.c          js 驱动
+  test_sql.sh        sql 骨架断言
   test_sqli.sh       sqli 断言
   test_log4j.sh      log4j 断言
   test_html5_xss.sh  html5_xss 断言
   test_js.sh         js 断言
-test.sh              sql 骨架断言
 Makefile             构建（make / make test）
 CMakeLists.txt       等价 cmake 构建
-misc/                历史归档（ANTLR4 后端等）
-tools/               ragel 实验（fcall/fret 等）
 ```
 
 约定：`src/` 放可复用的词法/语法基础设施，`rules/` 只放检测规则。

@@ -4,7 +4,7 @@
 #   1. 词法：tokens(n): 行内容
 #   2. 骨架：从位置 0 能否命中 expr / select_stmt / constant_value
 #   3. whole：select_stmt 是否整条覆盖（识别为完整 SELECT 语句）
-# 用法：test.sh [scan_binary]
+# 用法：test_sql.sh [scan_binary]
 set -u
 
 SCAN="${1:-./sql_scan}"
