@@ -1,14 +1,14 @@
 /* ============================================================
  * sqli_rules.rl — sqli_rules.g4（24 条 SQLi 攻击规则）的 Ragel 移植
  * ------------------------------------------------------------
- * 每条 <name>_pat 攻击规则对应一个独立机器入口（<name> 同名），驱动逐
- * 位置逐规则匹配并上报命中区间。
+ * 每条 <name>_pat 攻击规则对应一个独立机器入口（<name> 同名）。
  *
- * 状态机状态（cs + fcall 栈 + 命中长度）与位置（起点 / 喂入游标 / 扫描游标）
- * 都放在调用方的 SqliCtx 里，于是：
+ * 状态机层是"无位置的流式消费者"：SqliCtx 只存状态机内部状态（cs + fcall
+ * 栈 + 命中长度）与"已消费计数"，不记录任何绝对 token 下标 —— token 流的
+ * 顺序与位置由调用方（用户层）维护。
  *   - ctx_run() 是唯一执行体；
- *   - sqli_ctx_feed() 是底层"续跑"入口（喂一段、再喂一段）；
- *   - sqli_ctx_scan() 是高内聚的"扫描器"入口（起点循环由 ctx 自己推进）。
+ *   - sqli_ctx_feed() 喂"接下来"的 n 个 token（可续跑）；
+ *   - sqli_ctx_finish() 表示输入结束。
  *
  * 复用 sql_shared.rl 的 token 编号 / 运算符 / expr 规则链；
  * 递归入口与返回动作在本文件定义（act_ret 只弹栈不写长度，
@@ -56,9 +56,10 @@ extern int sql_is_ident(const Token* t, const char* expected);
     const_call := constant_value RPAREN @act_ret;
 
     # 命中记录（leaving）：离开规则终态时记录长度。
-    # base = 本次尝试的起点（ctx_run 的局部变量，取 CTX 的 start），
-    # 于是 match_len = 已消费的 token 数，与喂了几段无关。
-    action note { if (top == 0) match_len = (int)(p - types) - base; }
+    # consumed = 本段之前已消费的 token 数（ctx_run 的局部变量），
+    # p - types = 本段内的相对偏移，二者相加 = 从本次尝试起点起已消费的
+    # token 数 = 匹配长度。全程只用相对计数，不出现绝对位置。
+    action note { if (top == 0) match_len = consumed + (int)(p - types); }
     action is_sleep       { if (!sql_is_ident(&tk[(int)(p - types)], "sleep"))
                                 { cs = 0; goto _out; } }
     action is_load_file   { if (!sql_is_ident(&tk[(int)(p - types)], "load_file"))
@@ -118,30 +119,30 @@ extern int sql_is_ident(const Token* t, const char* expected);
 /* ------------------------------------------------------------
  * 运行期
  * ------------------------------------------------------------
- * ctx_run 是唯一的执行体：状态与位置都从 CTX 读入、跑完写回。所以同一段
- * 代码既能"一次喂到末尾"，也能"喂一段再喂一段"。
+ * ctx_run 是唯一的执行体：状态从 CTX 读入、跑完写回；输入就是"接下来"
+ * 的 n 个 token（本段）。不出现任何绝对 token 下标 —— 位置由调用方维护。
  *
- *   types/tk : 整个输入的 token 类型数组与原文数组（等长且对齐）
- *   offset   : 本次从 types[offset] 开始消费（= 喂之前的 c->pos）
- *   n        : 本次喂几个 token
- *   at_eof   : 非 0 才让 ragel 的 eof 动作有机会触发。喂中间段必须传 0，
- *              否则每段末尾都会被当成"输入结束"而提前记命中。
+ *   types/tk : 本段（接下来）的 token 类型数组与原文数组（等长对齐）
+ *   n        : 本段 token 数
+ *   at_eof   : 非 0 才让 ragel 的 eof 动作触发。喂中间段传 0，最后一段
+ *              （或 finish）传 1。
  *
- * %note 里的 base 取 CTX 的 start（本次尝试的起点），于是
- *     match_len = (p - types) - base = 从起点起已消费的 token 数
- * 与分几段喂无关。
+ * %note 里 match_len = consumed + (p - types)：
+ *   consumed  = 本段之前已消费的 token 数（相对计数）
+ *   p - types = 本段内的相对偏移
+ * 相加即"从本次尝试起点起已消费的 token 数" = 匹配长度。
  * ------------------------------------------------------------ */
 static int ctx_run(SqliCtx* c, const int* types, const Token* tk,
-                   int offset, int n, int at_eof, int* hit_len) {
-    const int* p = types + offset;
+                   int n, int at_eof, int* hit_len) {
+    const int* p = types;
     const int* pe = p + n;
     /* eof 在生成的代码里只出现于 `if (p == eof)`：给它一个永远不等于 p
      * 的值即可抑制 eof 动作（types 恒非空，p 不可能为 NULL）。 */
     const int* eof = at_eof ? pe : (const int*)0;
-    int base = c->start;
     int cs = c->cs;
     int top = c->top;
     int match_len = c->match_len;
+    int consumed = c->consumed;
     int* stack = c->stack;
 
     %%{
@@ -152,6 +153,7 @@ static int ctx_run(SqliCtx* c, const int* types, const Token* tk,
     c->cs = cs;
     c->top = top;
     c->match_len = match_len;
+    c->consumed = consumed + (int)(p - types);   /* 本段实际消费了几个 */
 
     if (match_len > 0) {
         if (hit_len) *hit_len = match_len;
@@ -161,7 +163,7 @@ static int ctx_run(SqliCtx* c, const int* types, const Token* tk,
 }
 
 /* ------------------------------------------------------------
- * 1) 初始化 / 清除
+ * 1) 初始化 / 清除 / 重置
  * ------------------------------------------------------------
  * 规则下标 -> ragel 入口状态。ragel 把入口状态生成成文件级
  * `static const int`，C 里它不算常量表达式，没法用于文件作用域的静态
@@ -179,67 +181,39 @@ static int entry_state(int rule) {
 
 void sqli_ctx_init(SqliCtx* c, int rule) {
     c->entry = entry_state(rule);
-    c->cs = c->entry;
-    c->top = 0;
-    c->match_len = 0;
-    c->start = 0;
-    c->pos = 0;
-    c->next = 0;             /* 扫描游标从头开始 */
+    sqli_ctx_reset(c);
 }
 
 void sqli_ctx_clean(SqliCtx* c) {
     c->entry = 0;
-    c->cs = 0;               /* 0 = 不可再喂/扫 */
+    c->cs = 0;               /* 0 = 不可再喂 */
     c->top = 0;
     c->match_len = 0;
-    c->start = 0;
-    c->pos = 0;
-    c->next = 0;
+    c->consumed = 0;
 }
 
-/* 把状态机拨回该规则的入口态，本次尝试从 start 起（内部用） */
-static void restart(SqliCtx* c, int start) {
+/* 开始一次新尝试：拨回入口态，清空命中与已消费计数。每次换起点（或新
+ * 请求复用同一 ctx）前调一次。 */
+void sqli_ctx_reset(SqliCtx* c) {
     c->cs = c->entry;
     c->top = 0;
     c->match_len = 0;
-    c->start = start;        /* 本次尝试的起点 */
-    c->pos = start;          /* 待喂位置 = 起点 */
+    c->consumed = 0;
 }
 
 /* ------------------------------------------------------------
  * 2) 匹配
  * ------------------------------------------------------------ */
 int sqli_ctx_feed(SqliCtx* c, const int* types, const Token* tk, int n,
-                  int cnt, int* hit_len) {
+                  int* hit_len) {
     if (!sqli_ctx_alive(c)) return 0;
-
-    if (c->pos >= n) {                 /* 输入已喂完 */
-        if (c->match_len > 0) {
-            if (hit_len) *hit_len = c->match_len;
-            return 1;
-        }
-        return 0;
-    }
-
-    int g0 = c->pos;
-    int g1 = (cnt <= 0 || g0 + cnt > n) ? n : g0 + cnt;
-    /* 只有喂到输入末尾那一次才允许 eof 动作触发（收尾） */
-    int r = ctx_run(c, types, tk, g0, g1 - g0, g1 == n, hit_len);
-    c->pos = g1;
-    return r;
+    return ctx_run(c, types, tk, n, 0, hit_len);   /* 收尾交给 finish */
 }
 
-int sqli_ctx_scan(SqliCtx* c, const int* types, const Token* tk, int n, int cnt) {
-    /* 起点循环在 ctx 内部推进，调用方不传起点 */
-    for ( ; c->next < n; ) {
-        int s = c->next++;
-        restart(c, s);                 /* 从第 s 个 token 起试 */
-        while (sqli_ctx_alive(c) && c->pos < n)
-            sqli_ctx_feed(c, types, tk, n, cnt, NULL);
-        if (c->match_len > 0)
-            return 1;                  /* c->start / c->match_len 即本次命中 */
-    }
-    return 0;                          /* 扫完 */
+int sqli_ctx_finish(SqliCtx* c, int* hit_len) {
+    static const int empty_types = 0;   /* n = 0，不会被读 */
+    static Token empty_tk;              /* 同上（零初始化） */
+    return ctx_run(c, &empty_types, &empty_tk, 0, 1, hit_len);
 }
 
 int sqli_ctx_alive(const SqliCtx* c) {

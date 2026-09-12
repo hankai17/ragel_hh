@@ -1,12 +1,11 @@
 /* ============================================================
  * sqli_scan.c — sqli_rules.rl（24 条 SQLi 攻击规则）的调用示例
  * ------------------------------------------------------------
- * 演示"调用方视角"：每个请求、每条规则一个 CTX（SqliCtx ctx[24]），
- * 驱动只做三步 —— 初始化 -> 扫描 -> 清除，起点循环由 CTX 自己推进，
- * 调用方不传起点、也不记位置。
+ * 演示"调用方视角"的分层：状态机层（sqli_rules）是无位置的流式消费者，
+ * 只吃 token、报匹配长度；token 流的顺序与起点循环都在本文件（用户层）。
  *
- *   chunk = 0（默认）  一次喂到输入末尾（批处理）
- *   chunk > 0（-c N）  每次喂 N 个 token、续跑（演示"后续 token 接着跑"）
+ *   每个请求、每条规则一个 CTX（SqliCtx ctx[24]）；起点循环在这里（for s），
+ *   对每个起点 reset -> feed -> finish，命中则上报 [s, s+match_len)。
  *
  * 谓词分工：
  *   - isIdent（sleep/load_file/benchmark/pg_sleep/db_enumeration）在 rl 内判定；
@@ -18,11 +17,9 @@
  *
  * 用法：
  *   ./sqli_scan '<payload>' [<payload>...]
- *   ./sqli_scan -c 3 '<payload>' [<payload>...]
  * ============================================================ */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "sql_tokens.h"
@@ -101,11 +98,21 @@ static int lex_and_print(const char* data, Token* tk, int* types) {
 }
 
 /* ------------------------------------------------------------
- * 每个请求：每条规则一个 CTX。驱动只做 init -> scan -> clean，
- * 起点循环由 CTX 自己推进（sqli_ctx_scan），调用方不传起点。
- *   chunk <= 0：一次喂到输入末尾；chunk > 0：每次喂 chunk 个 token、续跑。
+ * 一条规则从起点 s 起试一次：reset -> 一次喂到末尾 -> finish。
+ * 命中长度读 c->match_len。
  * ------------------------------------------------------------ */
-static void scan(const char* data, int chunk) {
+static void try_from(SqliCtx* c, const int* types, const Token* tk,
+                     int n, int s) {
+    sqli_ctx_reset(c);
+    sqli_ctx_feed(c, types + s, tk + s, n - s, NULL);
+    if (sqli_ctx_alive(c))
+        sqli_ctx_finish(c, NULL);
+}
+
+/* ------------------------------------------------------------
+ * 每个请求：每条规则一个 CTX。起点循环在这里（用户层），状态机只吃 token。
+ * ------------------------------------------------------------ */
+static void scan(const char* data) {
     Token tk[MAX_TOK];
     int types[MAX_TOK];
     int n = lex_and_print(data, tk, types);
@@ -114,9 +121,12 @@ static void scan(const char* data, int chunk) {
     for (int r = 0; r < SQLI_NUM_ENTRIES; ++r)
         sqli_ctx_init(&ctx[r], r);                       /* 1) 初始化 */
 
-    for (int r = 0; r < SQLI_NUM_ENTRIES; ++r) {
-        while (sqli_ctx_scan(&ctx[r], types, tk, n, chunk))   /* 2) 扫描 */
-            report(tk, types, n, r, ctx[r].start, ctx[r].start + ctx[r].match_len);
+    for (int s = 0; s < n; ++s) {                        /* 起点循环（用户层） */
+        for (int r = 0; r < SQLI_NUM_ENTRIES; ++r) {
+            try_from(&ctx[r], types, tk, n, s);          /* 2) 匹配 */
+            if (ctx[r].match_len > 0)
+                report(tk, types, n, r, s, s + ctx[r].match_len);
+        }
     }
 
     for (int r = 0; r < SQLI_NUM_ENTRIES; ++r)
@@ -126,26 +136,11 @@ static void scan(const char* data, int chunk) {
 }
 
 int main(int argc, char** argv) {
-    int chunk = 0;          /* 0 = 一次喂到末尾 */
-    int a = 1;
-
-    if (argc >= 2 && strcmp(argv[1], "-c") == 0) {
-        if (argc < 4) {
-            fprintf(stderr, "usage: %s [-c <chunk>] <payload> [<payload>...]\n",
-                    argv[0]);
-            return 2;
-        }
-        chunk = atoi(argv[2]);
-        if (chunk < 1) chunk = 1;
-        a = 3;
-    }
-    if (a >= argc) {
-        fprintf(stderr, "usage: %s [-c <chunk>] <payload> [<payload>...]\n",
-                argv[0]);
+    if (argc < 2) {
+        fprintf(stderr, "usage: %s <payload> [<payload>...]\n", argv[0]);
         return 2;
     }
-
-    for (; a < argc; ++a)
-        scan(argv[a], chunk);
+    for (int a = 1; a < argc; ++a)
+        scan(argv[a]);
     return 0;
 }
