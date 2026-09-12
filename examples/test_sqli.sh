@@ -3,9 +3,10 @@
 # sqli_rules.rl（24 条 SQLi 攻击规则，antlr4 sqli_rules.g4 的 Ragel 移植）测试
 # ------------------------------------------------------------
 # 断言（sqli_scan 输出 `!! <rule> [s,e) "..."` 行）：
-#   hit  <payload> <rule>   至少命中 rule
-#   miss <payload> <rule>   不命中 rule
-#   none <payload>          无任何规则命中
+#   hit   <payload> <rule>   至少命中 rule
+#   miss  <payload> <rule>   不命中 rule
+#   none  <payload>          无任何规则命中
+#   chunk <payload> <N>      按 N 个一块喂（可中断续跑），命中集合与整段一致
 # usage: test_sqli.sh [scan_binary]
 # ============================================================
 set -u
@@ -181,6 +182,45 @@ check_none "x + y"
 check_none "FROM t"
 check_none "SELECT"
 check_none "sleeping(5)"
+
+# ------------------------------------------------------------
+# 分块喂（sqli_scan -c N）：状态机状态跨块保留，命中集合必须与整段一致。
+# 覆盖谓词复核（always_true/string_tautology）、fcall/fret 递归
+# （subquery/in_subquery）、以及负样本。
+# ------------------------------------------------------------
+check_chunk() {
+    local payload="$1" chunk="$2" a b ok=1
+    a=$("$SCAN" "$payload" | grep '!! ' | sort)
+    b=$("$SCAN" -c "$chunk" "$payload" | grep '!! ' | sort)
+    [[ "$a" == "$b" ]] || ok=0
+    if [[ $ok == 1 ]]; then
+        printf '[PASS] chunk %-2s %s\n' "$chunk" "$payload"
+        pass=$((pass + 1))
+    else
+        printf '[FAIL] chunk %-2s %s\n--- 整段 ---\n%s\n--- 分块 %s ---\n%s\n' \
+               "$chunk" "$payload" "$a" "$chunk" "$b"
+        fail=$((fail + 1))
+    fi
+}
+
+check_chunk "1=1"                                  1
+check_chunk "(1)=(1)"                              1
+check_chunk "1=1 OR 1=2"                           2
+check_chunk "a=1 AND 1=1"                          2
+check_chunk "'a'='a'"                              1
+check_chunk "UNION SELECT 1,2,3"                   1
+check_chunk "1;DROP TABLE t"                       1
+check_chunk "(SELECT * FROM (SELECT 1))"           1
+check_chunk "id IN (SELECT id FROM t)"             2
+check_chunk "EXISTS (SELECT 1)"                    1
+check_chunk "SLEEP(5)"                             1
+check_chunk "a LIKE 'x%'"                          2
+check_chunk "a BETWEEN 1 AND 10"                   1
+check_chunk "1+1=2"                                1
+check_chunk "LIMIT 10 OFFSET 5"                    1
+check_chunk "SELECT * FROM information_schema.tables" 3
+check_chunk "SELECT * FROM t WHERE 1=1"            2
+check_chunk "hello world"                          1
 
 echo
 echo "summary: $pass passed, $fail failed"

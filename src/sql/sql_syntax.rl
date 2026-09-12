@@ -56,6 +56,10 @@
  * MAX_TOK=1024 时取 1024 留足余量。 */
 #define CFG_STACKSZ 1024
 
+/* sql_shared.rl 的 call_expr / call_elist 用这个名字做栈满判断。
+ * 各宿主自己定义（sqli_rules.rl 用它的实例栈上限）。 */
+#define SQL_FRAME_MAX CFG_STACKSZ
+
 /* ------------------------------------------------------------
  * 语义层：规则共享语义谓词（对齐 RuleSQL.g4 @parser::members）
  * ------------------------------------------------------------ */
@@ -174,7 +178,8 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
     expr_call := expr RPAREN @ret_expr;
     elist_call := expr_list? RPAREN @ret_expr;
 
-    action call_sel { fcall select_call; }
+    action call_sel { if (top >= SQL_FRAME_MAX) { cs = 0; goto _out; }
+                      fcall select_call; }
     action ret_sel  { if (top > 0) cs = stack[--top];
                       if (top == 0) match_len = (int)(p - types) + 1 - start;
                       goto _again; }
@@ -196,7 +201,8 @@ int sql_const_strings_equal(const Token* tk, int s0, int e0, int s1, int e1) {
     include sql_shared_tok "sql_shared.rl";
 
     # 常量值括号递归：字面量或任意层括号包裹（1 / (1) / ((1))）
-    action call_const { fcall const_call; }
+    action call_const { if (top >= SQL_FRAME_MAX) { cs = 0; goto _out; }
+                        fcall const_call; }
     action ret_const  { if (top > 0) cs = stack[--top];
                         if (top == 0) match_len = (int)(p - types) + 1 - start;
                         goto _again; }

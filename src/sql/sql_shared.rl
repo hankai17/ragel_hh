@@ -36,8 +36,12 @@
     # expr 递归骨架（token 级，常量来自 sql_shared_tok）：
     #   括号 / f(...) 递归走 fcall 到 expr_call / elist_call，
     #   入口与返回动作由使用方定义（见本文件头）。
-    action call_expr  { fcall expr_call; }
-    action call_elist { fcall elist_call; }
+    # 栈满即判失败，避免 fcall 写出栈外。上限宏由宿主自己定义
+    # （sql_syntax.rl 用 CFG_STACKSZ，sqli_rules.rl 用实例栈上限）。
+    action call_expr  { if (top >= SQL_FRAME_MAX) { cs = 0; goto _out; }
+                        fcall expr_call; }
+    action call_elist { if (top >= SQL_FRAME_MAX) { cs = 0; goto _out; }
+                        fcall elist_call; }
 
     primary = NUMBER | STRING | TRUE | FALSE | NULL
             | IDENT ( LPAREN @call_elist )?
