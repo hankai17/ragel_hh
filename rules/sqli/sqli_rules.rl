@@ -228,3 +228,4 @@ const SqliRuleDef SQLI_RULES[SQLI_NUM_ENTRIES] = {
     SQLI_RULE_LIST(SQLI_TAB)
 #undef SQLI_TAB
 };
+
