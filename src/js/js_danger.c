@@ -22,6 +22,7 @@
 #include "cistr.h"
 #include "js_tokens.h"
 #include "js_danger.h"
+#include "js_eval.h"
 
 /* 危险标识符（危险函数 / 危险对象 / 危险属性，统一集合） */
 static const char* DANGEROUS_IDENTS[] = {
@@ -57,8 +58,13 @@ static int dangerous_str(const char* s, int len) {
 }
 
 int js_is_dangerous(const char* code, int len) {
-    JsTok toks[256];
-    int n = lex_js(code, (size_t)len, toks, 256);
+    /* jsfuck 每个字符基本是一个 token：604 字符的 alert(1) 就有 600+ token，
+     * prompt(1) 约 2800 字符。放大到 4096 覆盖常见混淆（更长的交由调用方截断）。 */
+    JsTok toks[4096];
+    int n = lex_js(code, (size_t)len, toks, 4096);
+
+    /* 阶段 1：常量折叠求值，拦截 jsfuck 式混淆（Function(...) 动态构造代码） */
+    if (js_eval_dangerous(toks, n)) return 1;
 
     for (int i = 0; i < n; ++i) {
         /* 第一阶段：危险标识符 + 调用/成员访问上下文

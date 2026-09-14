@@ -104,6 +104,7 @@ add_library(ragel_sql STATIC
     ${GEN_DIR}/js_tokens.c
     ${GEN_DIR}/js_syntax.c
     ${JS_DIR}/js_danger.c
+    ${JS_DIR}/js_eval.c
     ${UTIL_DIR}/utf8.c
     ${UTIL_DIR}/cistr.c
     ${UTIL_DIR}/esc.c

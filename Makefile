@@ -37,7 +37,7 @@ INC := -I$(SRC_SQL) -I$(SRC_LOG4J) -I$(SRC_HTML5) -I$(SRC_JS) -I$(SRC_UTIL) \
 OBJS := $(GEN)/sql_tokens.o $(GEN)/sql_syntax.o $(GEN)/sqli_rules.o \
         $(GEN)/log4j_lookup.o \
         $(GEN)/html5_tokens.o $(GEN)/html5_entities.o $(GEN)/html5_xss_rules.o \
-        $(GEN)/js_tokens.o $(GEN)/js_syntax.o $(GEN)/js_danger.o \
+        $(GEN)/js_tokens.o $(GEN)/js_syntax.o $(GEN)/js_danger.o $(GEN)/js_eval.o \
         $(GEN)/utf8.o $(GEN)/cistr.o $(GEN)/esc.o
 LIB  := $(BIN)/libragel_sql.a
 
@@ -90,6 +90,10 @@ $(GEN)/js_syntax.c: $(SRC_JS)/js_syntax.rl $(SRC_JS)/js_tokens.h $(SRC_JS)/js_sh
 # js_danger.c 是手写 C（非 ragel 生成），单独编译
 $(GEN)/js_danger.o: $(SRC_JS)/js_danger.c $(SRC_JS)/js_danger.h $(SRC_JS)/js_tokens.h $(UTIL_HDRS) | $(GEN)
 	$(CC) $(CFLAGS) $(INC) -c -o $@ $(SRC_JS)/js_danger.c
+
+# js_eval.c 是手写 C（非 ragel 生成），单独编译
+$(GEN)/js_eval.o: $(SRC_JS)/js_eval.c $(SRC_JS)/js_eval.h $(SRC_JS)/js_tokens.h | $(GEN)
+	$(CC) $(CFLAGS) $(INC) -c -o $@ $(SRC_JS)/js_eval.c
 
 $(GEN)/%.o: $(GEN)/%.c
 	$(CC) $(CFLAGS) $(INC) -c -o $@ $<
