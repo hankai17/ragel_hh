@@ -28,7 +28,9 @@ typedef enum {
     V_UNDEF, V_NULL, V_BOOL, V_NUM, V_STR, V_ARR, V_FUNC
 } VType;
 
-/* func: 0 = Array, 1 = Function, 2 = 其他内建构造器(String/Boolean/Number) */
+/* func: 0=Array 1=Function 2=at 3=filter 4=Number 5=String 6=RegExp 7=Boolean
+ *       8=数字 toString（num 存 receiver）
+ *       9=fontcolor 10=italics 11=entries 12=fromCharCode */
 typedef struct {
     VType type;
     int   b;          /* V_BOOL */
@@ -45,11 +47,12 @@ typedef struct {
     int n;
     int pos;
     int dangerous;    /* 置 1 = 检出 Function(...) 动态构造代码 */
-    char sbuf[2048];  /* 字符串拼接工作区 */
+    char sbuf[16384]; /* 字符串拼接工作区（jsfuck 折叠中间结果累积较多） */
     int  slen;
 } Ev;
 
 static int eval_expr(Ev* e, Value* v);
+static const char* func_name(int f);
 
 static Value v_undef(void)      { Value v; v.type = V_UNDEF; return v; }
 static Value v_null(void)       { Value v; v.type = V_NULL;  return v; }
@@ -135,13 +138,12 @@ static Value to_str(Ev* e, const Value* v) {
         case V_UNDEF: return v_str(e, "undefined", 9);
         case V_NULL:  return v_str(e, "null", 4);
         case V_FUNC: {                              /* 函数 -> 字符串化（jsfuck 从中取 c/o 等字符） */
-            const char* fs;
-            if (v->func == 0)      fs = "function Array() { [native code] }";
-            else if (v->func == 1) fs = "function Function() { [native code] }";
-            else if (v->func == 2) fs = "function at() { [native code] }";
-            else if (v->func == 3) fs = "function filter() { [native code] }";
-            else                   fs = "function () { [native code] }";
-            return v_str(e, fs, (int)strlen(fs));
+            char fs[64];
+            int n;
+            if (v->func == 8) return v_str(e, "", 0);  /* toString 方法不直接字符串化 */
+            n = snprintf(fs, sizeof(fs), "function %s() { [native code] }",
+                         func_name(v->func));
+            return v_str(e, fs, n);
         }
         default:      return v_str(e, "", 0);
     }
@@ -161,6 +163,36 @@ static Value str_concat(Ev* e, const Value* a, const Value* b) {
     return v;
 }
 
+/* V_FUNC 的内建函数名（func -> 名字），用于字符串化和 name 属性 */
+static const char* func_name(int f) {
+    switch (f) {
+        case 0: return "Array";
+        case 1: return "Function";
+        case 2: return "at";
+        case 3: return "filter";
+        case 4: return "Number";
+        case 5: return "String";
+        case 6: return "RegExp";
+        case 7: return "Boolean";
+        default: return "";
+    }
+}
+
+/* num.toString(radix)：整数转 2~36 进制字符串。返回长度，失败返回 -1。 */
+static int num_to_string(char* buf, size_t cap, long num, long radix) {
+    static const char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+    char tmp[65];
+    int i = 0, o = 0;
+    if (radix < 2 || radix > 36 || cap < 2) return -1;
+    if (num == 0) { buf[0] = '0'; buf[1] = '\0'; return 1; }
+    if (num < 0) { buf[o++] = '-'; num = -num; }
+    while (num > 0) { tmp[i++] = digits[num % radix]; num /= radix; }
+    if (o + i + 1 > (int)cap) return -1;
+    while (i > 0) buf[o++] = tmp[--i];
+    buf[o] = '\0';
+    return o;
+}
+
 /* ---- 成员访问 obj[key] ---- */
 static int member_get(Ev* e, const Value* obj, const Value* key, Value* out) {
     /* 1) 字符串索引：obj 是字符串，key 是数字（或数字字符串） */
@@ -178,9 +210,9 @@ static int member_get(Ev* e, const Value* obj, const Value* key, Value* out) {
         switch (obj->type) {
             case V_ARR:  *out = v_func(0); return 1;  /* [].constructor = Array */
             case V_FUNC: *out = v_func(1); return 1;  /* x.constructor.constructor = Function */
-            case V_STR:
-            case V_BOOL:
-            case V_NUM:  *out = v_func(2); return 1;  /* 包装类 String/Boolean/Number */
+            case V_STR:  *out = v_func(5); return 1;  /* "".constructor = String */
+            case V_BOOL: *out = v_func(7); return 1;  /* false.constructor = Boolean */
+            case V_NUM:  *out = v_func(4); return 1;  /* (0).constructor = Number */
             default: return 0;
         }
     }
@@ -194,6 +226,35 @@ static int member_get(Ev* e, const Value* obj, const Value* key, Value* out) {
         *out = v_func(3);                            /* filter 函数 */
         return 1;
     }
+    /* 函数的 name 属性：String["name"] = "String"（拼 "toString" 方法名） */
+    if (obj->type == V_FUNC && k.slen == 4 && strncmp(k.s, "name", 4) == 0) {
+        const char* nm = func_name(obj->func);
+        *out = v_str(e, nm, (int)strlen(nm));
+        return 1;
+    }
+    /* 数字的 toString 方法：(211)["toString"](31) = 进制转换 */
+    if (obj->type == V_NUM && k.slen == 8 && strncmp(k.s, "toString", 8) == 0) {
+        *out = v_func(8);
+        out->num = obj->num;                         /* 记住 receiver 数字 */
+        return 1;
+    }
+    /* 字符串的 fontcolor / italics 方法（jsfuck 用来生成引号等字符），
+     * 用 s/slen 记住 receiver 字符串（fontcolor/italics 结果含 receiver） */
+    if (obj->type == V_STR && k.slen == 9 && strncmp(k.s, "fontcolor", 9) == 0) {
+        *out = v_func(9);
+        out->s = obj->s; out->slen = obj->slen;
+        return 1;
+    }
+    if (obj->type == V_STR && k.slen == 7 && strncmp(k.s, "italics", 7) == 0) {
+        *out = v_func(10);
+        out->s = obj->s; out->slen = obj->slen;
+        return 1;
+    }
+    /* 数组的 entries 方法（[]["entries"]()+"..." 字符串化取字符） */
+    if (obj->type == V_ARR && k.slen == 7 && strncmp(k.s, "entries", 7) == 0) {
+        *out = v_func(11);
+        return 1;
+    }
     /* 3) 数组/对象上的其他属性 -> undefined（jsfuck 场景） */
     if (obj->type == V_ARR) { *out = v_undef(); return 1; }
     return 0;
@@ -201,10 +262,41 @@ static int member_get(Ev* e, const Value* obj, const Value* key, Value* out) {
 
 /* ---- 调用 f(args) ---- */
 static int call_val(Ev* e, const Value* fn, const Value* arg, Value* out) {
-    (void)arg;
-    if (fn->type == V_FUNC && fn->func == 1) {
+    if (fn->type != V_FUNC) return 0;
+    if (fn->func == 1) {
         e->dangerous = 1;                          /* Function(...) = 动态构造代码 */
         *out = v_func(2);                          /* 返回"动态构造的函数" */
+        return 1;
+    }
+    if (fn->func == 8) {                           /* 数字 toString(radix) = 进制转换 */
+        long radix;
+        char buf[65];
+        int n;
+        if (!to_num(arg, &radix)) return 0;
+        n = num_to_string(buf, sizeof(buf), fn->num, radix);
+        if (n < 0) return 0;
+        *out = v_str(e, buf, n);
+        return 1;
+    }
+    if (fn->func == 9) {                           /* fontcolor(arg) */
+        Value as = to_str(e, arg);
+        char buf[256];
+        int n = snprintf(buf, sizeof(buf), "<font color=\"%.*s\">%.*s</font>",
+                         as.slen, as.s, fn->slen, fn->s);
+        if (n < 0 || n >= (int)sizeof(buf)) return 0;
+        *out = v_str(e, buf, n);
+        return 1;
+    }
+    if (fn->func == 10) {                          /* italics() */
+        char buf[256];
+        int n = snprintf(buf, sizeof(buf), "<i>%.*s</i>", fn->slen, fn->s);
+        if (n < 0 || n >= (int)sizeof(buf)) return 0;
+        *out = v_str(e, buf, n);
+        return 1;
+    }
+    if (fn->func == 11) {                          /* entries() -> 迭代器字符串化 */
+        const char* its = "[object Array Iterator]";
+        *out = v_str(e, its, (int)strlen(its));
         return 1;
     }
     return 0;
@@ -250,8 +342,19 @@ static int eval_primary(Ev* e, Value* v) {
             if (!accept(e, J_RPAREN)) return 0;
             return 1;
         }
+        case J_IDENT: {
+            /* 内建全局标识符（jsfuck 用它们的字符串化取字符） */
+            if (t.len == 6 && strncmp(t.s, "Number", 6) == 0)   { e->pos++; *v = v_func(4); return 1; }
+            if (t.len == 6 && strncmp(t.s, "String", 6) == 0)   { e->pos++; *v = v_func(5); return 1; }
+            if (t.len == 6 && strncmp(t.s, "RegExp", 6) == 0)   { e->pos++; *v = v_func(6); return 1; }
+            if (t.len == 7 && strncmp(t.s, "Boolean", 7) == 0)  { e->pos++; *v = v_func(7); return 1; }
+            if (t.len == 8 && strncmp(t.s, "Function", 8) == 0) { e->pos++; *v = v_func(1); return 1; }
+            if (t.len == 3 && strncmp(t.s, "NaN", 3) == 0)      { e->pos++; *v = v_str(e, "NaN", 3); return 1; }
+            if (t.len == 8 && strncmp(t.s, "Infinity", 8) == 0) { e->pos++; *v = v_str(e, "Infinity", 8); return 1; }
+            return 0;                               /* 其他标识符：不可求值 */
+        }
         default:
-            return 0;                               /* IDENT / 关键字：不可求值 */
+            return 0;
     }
 }
 
