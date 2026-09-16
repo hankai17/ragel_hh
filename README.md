@@ -64,6 +64,21 @@ cmake -S . -B build && cmake --build build -j
 cmake --build build --target validate_ragel
 ```
 
+## SQL 注入的语义分析
+
+`sqli_scan` 不是字符串比对，是真的"看懂" SQL：
+
+```bash
+./build/ragel/sqli_scan '1=1'                  # always_true
+./build/ragel/sqli_scan '1=2'                  # 不命中：结构相同，但恒假
+./build/ragel/sqli_scan 'SLEEP(5)'             # sleep（大小写不敏感）
+./build/ragel/sqli_scan 'sleeping(5)'          # 不命中：名字不是 sleep
+./build/ragel/sqli_scan '1=1/**/OR/**/1=2'     # 注释跳过，等价 1=1 OR 1=2
+./build/ragel/sqli_scan '(SELECT * FROM (SELECT 1))' # 嵌套子查询
+```
+
+`1=1` 报、`1=2` 不报——两边值相等是算出来的（`sql_const_numbers_equal`），不是正则；`SLEEP(5)` 报、`sleeping(5)` 不报——函数名是精确比对（`$is_sleep`），不是前缀匹配。
+
 ## 目录
 
 ```
