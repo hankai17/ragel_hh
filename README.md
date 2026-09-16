@@ -38,6 +38,8 @@ cmake --build build --target validate_ragel
 
 ## SQL 注入
 
+括号、子查询是嵌套 CFG，靠 `fcall`/`fret` 递归，任意深度。
+
 `sqli_scan` 是语义分析，不是字符串匹配：
 
 ```bash
