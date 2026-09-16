@@ -38,6 +38,7 @@
 #include "html5_tokens.h"
 #include "html5_entities.h"
 #include "js_danger.h"
+#include "html5_xss_rules.h"
 
 /* ------------------------------------------------------------
  * 语义层：黑名单数据 + 匹配谓词（C 层，供 Ragel 动作调用）
@@ -157,8 +158,11 @@ static int is_dangerous_comment(const char* s, int len) {
     machine html5_xss;
     include html5_shared "html5_shared.rl";
 
-    # 命中记录（leaving）：离开规则终态时记录 token 长度
-    action note { match_len = (int)(p - types) - start; }
+    # 命中记录（leaving）：离开规则终态时记录 token 长度。
+    # consumed = 本段之前已消费的 token 数（ctx_run 局部变量），
+    # p - types = 本段内的相对偏移，二者相加 = 从本次尝试起点起已消费的
+    # token 数 = 匹配长度。全程只用相对计数，不出现绝对位置。
+    action note { match_len = consumed + (int)(p - types); }
 
     # 语义谓词：不满足即终止本位置匹配（cs=0 表示失败）
     action is_btag {
@@ -216,38 +220,109 @@ static int is_dangerous_comment(const char* s, int len) {
 }%%
 
 /* ------------------------------------------------------------
- * 运行期：通用 run（cs0 指定入口）+ 每个规则一个导出函数
+ * 运行期
+ * ------------------------------------------------------------
+ * ctx_run 是唯一的执行体：状态从 CTX 读入、跑完写回；输入就是"接下来"
+ * 的 n 个 token（本段）。不出现任何绝对 token 下标 —— 位置由调用方维护。
+ *
+ *   types/tk : 本段（接下来）的 token 类型数组与原文数组（等长对齐）
+ *   n        : 本段 token 数
+ *   at_eof   : 非 0 才让 ragel 的 eof 动作触发。喂中间段传 0，最后一段
+ *              （或 finish）传 1。
+ *
+ * %note 里 match_len = consumed + (p - types)：
+ *   consumed  = 本段之前已消费的 token 数（相对计数）
+ *   p - types = 本段内的相对偏移
+ * 相加即"从本次尝试起点起已消费的 token 数" = 匹配长度。
  * ------------------------------------------------------------ */
-static int run_html5_xss(const int* types, int n, int start, int cs0,
-                   const H5Tok* tk, int* len) {
-    const int* p = types + start;
-    const int* pe = types + n;
-    const int* eof = pe;
-    int cs = cs0;
-    int match_len = 0;
+static int ctx_run(H5XssCtx* c, const int* types, const H5Tok* tk,
+                   int n, int at_eof, int* hit_len) {
+    const int* p = types;
+    const int* pe = p + n;
+    /* eof 在生成的代码里只出现于 `if (p == eof)`：给它一个永远不等于 p
+     * 的值即可抑制 eof 动作（types 恒非空，p 不可能为 NULL）。 */
+    const int* eof = at_eof ? pe : (const int*)0;
+    int cs = c->cs;
+    int match_len = c->match_len;
+    int consumed = c->consumed;
 
     %%{
         machine html5_xss;
         write exec;
     }%%
 
+    c->cs = cs;
+    c->match_len = match_len;
+    c->consumed = consumed + (int)(p - types);   /* 本段实际消费了几个 */
+
     if (match_len > 0) {
-        *len = match_len;
+        if (hit_len) *hit_len = match_len;
         return 1;
     }
     return 0;
 }
 
-/* ragel 为每个 `:=` 入口生成 html5_xss_en_<name> 起始状态常量 */
-#define HTML5_XSS_ENTRY(name) \
-    int html5_xss_match_##name(const int* types, int n, int start, \
-                         const H5Tok* tk, int* len) { \
-        return run_html5_xss(types, n, start, html5_xss_en_##name, tk, len); \
-    }
+/* ------------------------------------------------------------
+ * 1) 初始化 / 清除 / 重置
+ * ------------------------------------------------------------
+ * 规则下标 -> ragel 入口状态。ragel 把入口状态生成成文件级
+ * `static const int`，C 里它不算常量表达式，没法用于文件作用域的静态
+ * 初始化，所以这里用一张局部数组在运行期取（自动存储期允许非常量初始化）。
+ * ------------------------------------------------------------ */
+static int entry_state(int rule) {
+    const int tbl[H5XSS_NUM_ENTRIES] = {
+#define H5XSS_ENTRY_OF(name) html5_xss_en_##name,
+        H5XSS_RULE_LIST(H5XSS_ENTRY_OF)
+#undef H5XSS_ENTRY_OF
+    };
+    if (rule < 0 || rule >= H5XSS_NUM_ENTRIES) return 0;
+    return tbl[rule];
+}
 
-HTML5_XSS_ENTRY(black_tag)
-HTML5_XSS_ENTRY(black_attr)
-HTML5_XSS_ENTRY(black_url)
-HTML5_XSS_ENTRY(style_expr)
-HTML5_XSS_ENTRY(dangerous_comment)
-HTML5_XSS_ENTRY(dangerous_js)
+void h5xss_ctx_init(H5XssCtx* c, int rule) {
+    c->entry = entry_state(rule);
+    h5xss_ctx_reset(c);
+}
+
+void h5xss_ctx_clean(H5XssCtx* c) {
+    c->entry = 0;
+    c->cs = 0;               /* 0 = 不可再喂 */
+    c->match_len = 0;
+    c->consumed = 0;
+}
+
+/* 开始一次新尝试：拨回入口态，清空命中与已消费计数。每次换起点（或新
+ * 请求复用同一 ctx）前调一次。 */
+void h5xss_ctx_reset(H5XssCtx* c) {
+    c->cs = c->entry;
+    c->match_len = 0;
+    c->consumed = 0;
+}
+
+/* ------------------------------------------------------------
+ * 2) 匹配
+ * ------------------------------------------------------------ */
+int h5xss_ctx_feed(H5XssCtx* c, const int* types, const H5Tok* tk, int n,
+                   int* hit_len) {
+    if (!h5xss_ctx_alive(c)) return 0;
+    return ctx_run(c, types, tk, n, 0, hit_len);   /* 收尾交给 finish */
+}
+
+int h5xss_ctx_finish(H5XssCtx* c, int* hit_len) {
+    static const int empty_types = 0;   /* n = 0，不会被读 */
+    static H5Tok empty_tk;              /* 同上（零初始化） */
+    return ctx_run(c, &empty_types, &empty_tk, 0, 1, hit_len);
+}
+
+int h5xss_ctx_alive(const H5XssCtx* c) {
+    return c->cs != 0;
+}
+
+/* ------------------------------------------------------------
+ * 规则表：与 H5XSS_RULE_LIST 同序（名字，供上报）
+ * ------------------------------------------------------------ */
+const H5XssRuleDef H5XSS_RULES[H5XSS_NUM_ENTRIES] = {
+#define H5XSS_TAB(name) { #name },
+    H5XSS_RULE_LIST(H5XSS_TAB)
+#undef H5XSS_TAB
+};
