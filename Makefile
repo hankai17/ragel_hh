@@ -41,7 +41,9 @@ OBJS := $(GEN)/sql_tokens.o $(GEN)/sql_syntax.o $(GEN)/sqli_rules.o \
         $(GEN)/utf8.o $(GEN)/cistr.o $(GEN)/esc.o
 LIB  := $(BIN)/libragel_sql.a
 
-all: $(BIN)/sql_scan $(BIN)/sqli_scan $(BIN)/log4j_scan $(BIN)/html5_xss_scan $(BIN)/js_scan
+all: $(BIN)/sql_scan $(BIN)/sqli_scan $(BIN)/log4j_scan $(BIN)/html5_xss_scan $(BIN)/js_scan $(BIN)/bench
+
+bench: $(BIN)/bench
 
 $(GEN):
 	mkdir -p $(GEN) $(BIN)
@@ -117,6 +119,9 @@ $(BIN)/html5_xss_scan: examples/html5_xss_scan.c $(LIB)
 $(BIN)/js_scan: examples/js_scan.c $(LIB)
 	$(CC) $(CFLAGS) -I$(SRC_JS) -o $@ examples/js_scan.c $(LIB)
 
+$(BIN)/bench: examples/bench.c $(LIB)
+	$(CC) $(CFLAGS) -I$(SRC_SQL) -I$(RULES_SQLI) -I$(SRC_HTML5) -I$(RULES_HTML5_XSS) -o $@ examples/bench.c $(LIB)
+
 test: all
 	./examples/test_sql.sh $(BIN)/sql_scan
 	./examples/test_sqli.sh $(BIN)/sqli_scan
@@ -127,4 +132,4 @@ test: all
 clean:
 	rm -rf $(GEN) $(BIN)
 
-.PHONY: all test clean
+.PHONY: all test clean bench
