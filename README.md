@@ -11,7 +11,7 @@
 
 ## 能干什么
 
-编译完在 `build/ragel/` 下有几个可执行文件，各管一类攻击：
+编译后在 `build/ragel/` 下有几个可执行文件，分别检测一类攻击：
 
 | 可执行文件 | 管什么 | 例子 |
 | --- | --- | --- |
@@ -34,7 +34,7 @@ cmake -S . -B build && cmake --build build -j
 cmake --build build --target validate_ragel
 ```
 
-输出先打印切词，再打印命中规则：`sqli_scan` / `html5_xss_scan` 行首是 `!!`，`log4j_scan` 是 `[JNDI]`。`make test` 输出 `[PASS]` / `[FAIL]` 加总结。
+输出先打印切词，再打印命中规则：`sqli_scan` / `html5_xss_scan` 行首是 `!!`，`log4j_scan` 是 `[JNDI]`。`make test` 输出 `[PASS]` / `[FAIL]` 以及汇总。
 
 ## SQL 注入
 
@@ -98,17 +98,17 @@ examples/       驱动（*_scan.c）+ 测试（test_*.sh）
 build/          编译产物，git 不跟踪
 ```
 
-`src/` 是工具，`rules/` 是规则，调检测效果基本只改 `rules/`。
+`src/` 是工具，`rules/` 是规则，调整检测效果基本只改 `rules/`。
 
 ## 改规则
 
 - 规则在 `rules/` 下对应模块的 `.rl` 里，改完 `make` 生效。
-- `build/ragel/gen/*.c` 是 ragel 生成的中间产物，别手改。
-- 测试在 `examples/test_*.sh`，加规则顺手加两条用例。
+- `build/ragel/gen/*.c` 是 ragel 生成的中间产物，不要手动修改。
+- 测试在 `examples/test_*.sh`，加规则时补充用例。
 - 规则 include `src/` 下的共享片段，ragel 生成时加 `-I` 指向 `src/`，写在 `Makefile` / `CMakeLists.txt`。
 
 ## 几个说明
 
-- 驱动（`examples/*.c`）只 include 头文件、链接 `libragel_sql.a`，不碰生成的 `.c`。
+- 驱动（`examples/*.c`）只 include 头文件、链接 `libragel_sql.a`，不直接修改生成的 `.c`。
 - 括号嵌套、子查询用 ragel 的 `fcall` / `fret`，细节在对应 `.rl` 开头注释。
 - 只 `make` 不 `make test` 时，`.rl` 改了也会自动重新生成。
